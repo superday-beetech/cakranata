@@ -21,7 +21,7 @@ function updateValue(event: Event): void {
 
 <template>
   <div class="pos-field">
-    <label>Pajak</label>
+    <label>Diskon Transaksi</label>
 
     <div class="pos-input-group">
       <select :value="mode" :disabled="disabled" @change="emit('update:mode', ($event.target as HTMLSelectElement).value as TaxMode)">
