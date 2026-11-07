@@ -6,12 +6,11 @@ const { soundEnabled, play: playPosSound, toggle: togglePosSound } = usePosSound
 
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { usePos } from "../composables/usePos";
-import type { PaymentMethod, ProductSearchResult, PosCartItem as CartItem, PosAdditionalCharge, Sale, SettlementMode, DiscountMode, TaxMode } from "../types/sales";
+import type { PaymentMethod, ProductSearchResult, PosAdditionalCharge, Sale, SettlementMode, DiscountMode, TaxMode } from "../types/sales";
 
 import productService from "@/modules/pharmacy/master/services/productService";
 import CustomerAutocomplete from "@/modules/pharmacy/master/components/CustomerAutocomplete.vue";
 
-import PosHeader from "../components/pos/PosHeader.vue";
 import PosProductSearch from "../components/pos/PosProductSearch.vue";
 import PosCart from "../components/pos/PosCart.vue";
 import PosSummary from "../components/pos/PosSummary.vue";
