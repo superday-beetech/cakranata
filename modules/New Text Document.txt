@@ -1,0 +1,78 @@
+Roadmap setelah Permission tersedia
+
+1. Permission Registry — selesai sebagai sumber data
+Tahap sebelumnya
+RouteRegistry menyediakan daftar endpoint dan permission yang sudah ditinjau. Data hasil scan tidak otomatis menjadi izin aktif.
+
+
+
+2
+
+2. Permission Synchronization
+
+Sinkronkan permission yang valid dari registry ke auth_permissions.
+- Tambahkan permission baru yang disetujui.
+- Pertahankan permission yang masih digunakan.
+- Tandai permission usang untuk ditinjau.
+- Jangan menghapus atau mengaktifkan permission secara otomatis tanpa aturan yang jelas.
+
+
+
+3
+
+3. Group-Permission Assignment
+
+Hubungkan permission dengan grup menggunakan mekanisme Shield.
+
+Contoh:
+- superadmin: bypass sesuai kebijakan khusus.
+- admin: pengelolaan modul yang diizinkan.
+- operator: menjalankan transaksi sesuai tugas.
+- viewer: hanya melihat data yang diizinkan.
+Tidak semua permission otomatis diberikan kepada grup.
+
+
+
+4
+
+4. AccessControlService
+
+Inilah lapisan penegakan keamanan.
+
+Tugasnya memeriksa identitas pengguna, status autentikasi, grup, permission, dan kebijakan akses sebelum controller menjalankan aksi.
+
+Contoh: access('backend.navigation.view').
+
+RbacService tetap mengelola data RBAC; AccessControlService yang memutuskan apakah akses diperbolehkan.
+
+
+
+5
+
+5. Integrasi ke DynamicRouter dan ApiRouter
+
+Terapkan kebijakan secara konsisten pada web dan API.
+- Web tanpa sesi yang valid → arahkan ke login.
+- API tanpa autentikasi yang valid → respons 401.
+- Sudah terautentikasi tetapi tidak berizin → respons 403.
+- HTTP verb tidak diizinkan → respons 405.
+- Endpoint tidak terdaftar atau tidak diizinkan → tolak secara default.
+Login dan endpoint publik harus memiliki pengecualian eksplisit.
+
+
+
+6
+
+6. Menu dan UI Authorization
+
+Setelah keamanan backend konsisten, baru integrasikan permission ke navigasi, tombol, aksi, dan tampilan.
+
+Contoh: pengguna yang tidak memiliki inventory.create tidak melihat tombol tambah barang. Namun backend tetap wajib menolak permintaan langsung.
+
+
+
+7
+
+7. Audit, Cache, dan Pengujian Keamanan
+
+Catat perubahan permission dan assignment grup, kelola invalidasi cache setelah perubahan hak akses, serta uji akses web dan API untuk setiap jenis pengguna.
