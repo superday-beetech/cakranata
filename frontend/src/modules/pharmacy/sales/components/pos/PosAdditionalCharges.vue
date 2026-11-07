@@ -1,10 +1,5 @@
 <script setup lang="ts">
-export interface PosAdditionalCharge {
-  id: string;
-  type: "donation" | "shipping" | "packaging" | "service" | "other";
-  description: string;
-  amount: number;
-}
+import type { PosAdditionalCharge } from "../../types/sales";
 
 defineProps<{
   charges: PosAdditionalCharge[];
