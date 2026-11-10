@@ -38,6 +38,7 @@ class CreatePharmacyPaymentTables extends Migration
             ['code' => 'ewallet', 'name' => 'E-Wallet', 'channel' => 'ewallet', 'processing_type' => 'gateway', 'requires_confirmation' => 1, 'provider_required' => 1, 'is_active' => 1, 'sort_order' => 40, 'created_at' => $now, 'updated_at' => $now],
             ['code' => 'virtual_account', 'name' => 'Virtual Account', 'channel' => 'virtual_account', 'processing_type' => 'gateway', 'requires_confirmation' => 1, 'provider_required' => 1, 'is_active' => 1, 'sort_order' => 50, 'created_at' => $now, 'updated_at' => $now],
             ['code' => 'card', 'name' => 'Kartu Debit/Kredit', 'channel' => 'card', 'processing_type' => 'gateway', 'requires_confirmation' => 1, 'provider_required' => 1, 'is_active' => 1, 'sort_order' => 60, 'created_at' => $now, 'updated_at' => $now],
+            ['code' => 'other', 'name' => 'Lainnya', 'channel' => 'other', 'processing_type' => 'manual', 'requires_confirmation' => 1, 'provider_required' => 0, 'is_active' => 1, 'sort_order' => 70, 'created_at' => $now, 'updated_at' => $now],
         ]);
 
         $this->forge->addField([
