@@ -759,6 +759,45 @@ class SalesService
         $paymentNumber = $this->generateNumber('CP');
         $transactionNumber = $this->generateNumber('CT');
 
+        // Simpan juga ke ledger pembayaran baru agar pembayaran POS
+        // lama tetap terbaca oleh fondasi hybrid payment.
+        $methodCode = match ($method) {
+            'cash' => 'cash',
+            'transfer' => 'bank_transfer',
+            'qris' => 'qris',
+            'debit', 'credit' => 'card',
+            default => 'other',
+        };
+
+        $methodRow = $this->db->table('payment_methods')
+            ->where('code', $methodCode)
+            ->where('is_active', 1)
+            ->get()
+            ->getRowArray();
+
+        if (!$methodRow) {
+            throw new RuntimeException('Master metode pembayaran belum tersedia: ' . $methodCode);
+        }
+
+        $this->db->table('sale_payments')->insert([
+            'payment_number' => $paymentNumber,
+            'sale_id' => $sale['id'],
+            'payment_method_id' => $methodRow['id'],
+            'provider_id' => null,
+            'amount' => $amount,
+            'status' => 'paid',
+            'processing_type' => 'manual',
+            'reference_number' => $referenceNumber,
+            'external_reference' => null,
+            'idempotency_key' => 'pos-sale-' . $sale['id'] . '-initial',
+            'notes' => 'Pembayaran POS ' . $sale['sale_number'],
+            'created_by' => $userId,
+            'verified_by' => $userId,
+            'paid_at' => $now,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
         // Customer walk-in tidak dicatat ke customer_payments
         // jika tidak memiliki customer_id.
         if (!empty($sale['customer_id'])) {
