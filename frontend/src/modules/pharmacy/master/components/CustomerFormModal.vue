@@ -44,7 +44,7 @@ watch(
 async function submitForm() {
   if (loading.value) return;
 
-  if (!form.code.trim() || !form.name.trim()) {
+  if (!(form.code ?? "").trim() || !form.name.trim()) {
     notify.warning("Kode dan nama customer wajib diisi.");
     return;
   }
@@ -53,7 +53,7 @@ async function submitForm() {
 
   try {
     const payload: CustomerPayload = {
-      code: form.code.trim().toUpperCase(),
+      code: (form.code ?? "").trim().toUpperCase(),
       name: form.name.trim(),
       customer_type: form.customer_type?.trim() || null,
       phone: form.phone?.trim() || null,

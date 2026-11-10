@@ -2,283 +2,201 @@ import type { Component } from "vue";
 
 export type DynamicPageLoader = () => Promise<Component>;
 
-const pages = import.meta.glob<Component>([
-    "../modules/*/views/**/*.vue",
-    "../modules/*/*/views/**/*.vue",
-]);
-
-function normalizePageName(value: string): string {
-    return value
-        .replace(/[^a-zA-Z0-9]/g, "")
-        .toLowerCase();
-}
-
-/**
- * Alias URL untuk nama file halaman.
- *
- * Contoh:
- * /pharmacy/inventory/movements
- * -> StockMovementView.vue
- */
-const pageAliases: Record<string, string[]> = {
-    // categories: ["category"],
-    // units: ["unit"],
-    // products: ["product"],
-    // suppliers: ["supplier"],
-    // customers: ["customer"],
-    // batches: ["productbatch"],
-    // movements: ["stockmovement"],
-    // "stock-overview": ["stockoverview"],
-    // "purchase-orders": ["purchaseorder"],
-    // "goods-receipts": ["goodsreceipt"],
+type PageStructure = {
+  module: string;
+  domain: string | null;
+  filename: string;
+  loader: DynamicPageLoader;
 };
 
-export function resolveDynamicPage(
-    url: string,
-): DynamicPageLoader | null {
-    const segments = url
-        .replace(/^\/+|\/+$/g, "")
-        .split("/")
-        .filter(Boolean);
+const pages = import.meta.glob<Component>(["../modules/*/views/**/*.vue", "../modules/*/*/views/**/*.vue"]);
 
-    if (segments.length < 2) {
-        return null;
-    }
-
-    const moduleName = segments[0].toLowerCase();
-
-    // Format:
-    // /pharmacy/products
-    // /pharmacy/inventory/movements
-    const domainName =
-        segments.length >= 3
-            ? segments[1].toLowerCase()
-            : null;
-
-    const pageName = segments.at(-1) ?? "";
-
-    const normalizedPageName = normalizePageName(pageName);
-
-    const acceptedNames = [
-        normalizedPageName,
-        ...(pageAliases[pageName.toLowerCase()] ?? []).map(
-            normalizePageName,
-        ),
-    ];
-
-    const matches = Object.entries(pages).filter(([path]) => {
-        const match = path.match(
-            /^\.\.\/modules\/([^/]+)\/(?:(.*?)\/)?views\/(.+)\.vue$/i,
-        );
-
-        if (!match) {
-            return false;
-        }
-
-        const [, folder, domain, relativePath] = match;
-
-        // Cocokkan nama modul.
-        if (folder.toLowerCase() !== moduleName) {
-            return false;
-        }
-
-        // Jika URL menggunakan domain, cocokkan folder domain.
-        if (
-            domainName &&
-            domain?.toLowerCase() !== domainName
-        ) {
-            return false;
-        }
-
-        // Jika URL tidak menggunakan domain, hanya cocokkan
-        // halaman pada struktur lama.
-        if (!domainName && domain) {
-            return false;
-        }
-
-        const filename = relativePath
-            .split("/")
-            .at(-1)!
-            .replace(/\.vue$/i, "")
-            .replace(/view$/i, "");
-
-        return acceptedNames.includes(
-            normalizePageName(filename),
-        );
-    });
-
-    return matches.length === 1 ? matches[0][1] : null;
+/**
+ * Normalisasi nama URL dan nama file.
+ *
+ * stock-movements -> stockmovements
+ * StockMovementsView -> stockmovements
+ */
+function normalizePageName(value: string): string {
+  return value
+    .replace(/\.vue$/i, "")
+    .replace(/view$/i, "")
+    .replace(/[^a-zA-Z0-9]/g, "")
+    .toLowerCase();
 }
-/* import type { Component } from "vue";
-import type { RouteRecordRaw } from "vue-router";
+function normalizeSlug(value: string): string {
+  return value.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+}
 
-const pages = import.meta.glob<Component>(
-    "../modules//views//.vue"
-);
+function normalizeFilename(value: string): string {
+  return normalizeSlug(value.replace(/\.vue$/i, "").replace(/View$/i, ""));
+}
+/**
+ * Alias URL berdasarkan module/domain.
+ *
+ * Format:
+ * "module/domain": {
+ *     "url-slug": ["NamaView"]
+ * }
+ */
+const pageAliases: Record<string, Record<string, string[]>> = {
+  "organization/master": {
+    organizations: ["organization"],
+    "organization-units": ["organizationunits"],
+    "organization-memberships": ["organizationmemberships"],
+    "organization-selection": ["organizationselection"],
+  },
 
-export function resolveDynamicPage(url: string): RouteRecordRaw {
-    const segments = url
-        .replace(/^\/+|\/+$/g, "")
-        .split("/");
+  "organization/unit": {
+    "organization-units": ["organizationunits"],
+  },
 
-    const page = segments.at(-1)?.toLowerCase() ?? "";
+  "pharmacy/master": {
+    categories: ["category"],
+    units: ["unit"],
+    products: ["product"],
+    suppliers: ["supplier"],
+    customers: ["customer"],
+  },
 
-    const matches = Object.entries(pages).filter(([path]) => {
-        const parts = path.split("/");
+  "pharmacy/inventory": {
+    batches: ["productbatch"],
+    "product-batches": ["productbatch"],
+    movements: ["stockmovements"],
+    "stock-movements": ["stockmovements"],
+    "stock-overview": ["stockoverview"],
+    "stock-opnames": ["stockopname"],
+  },
 
-        const moduleName = parts[2]?.toLowerCase();
-        const filename = parts.at(-1)
-            ?.replace(/\.vue$/i, "")
-            .toLowerCase();
+  "pharmacy/procurement": {
+    "purchase-orders": ["purchaseorder"],
+    "goods-receipts": ["goodsreceipt"],
+  },
 
-        const moduleMatches =
-            moduleName === page || moduleName === `${page}s`;
+  "pharmacy/returns": {
+    "purchase-returns": ["purchase"],
+    "sales-returns": ["sales"],
+  },
 
-        const componentMatches =
-            filename === `${page}view` ||
-            filename === `${page}sview`;
+  "pharmacy/distribution": {
+    deliveries: ["delivery"],
+    "distribution-orders": ["distributionorder"],
+  },
 
-        return moduleMatches && componentMatches;
-    });
+  "pharmacy/finance": {
+    "cash-transactions": ["cashtransaction"],
+    "customer-payments": ["customerpayment"],
+    "supplier-payments": ["supplierpayment"],
+    "finance-dashboard": ["financedashboard"],
+  },
 
-    if (matches.length !== 1) {
-        return {
-            path: url,
-            name: `DynamicNotFound_${page}`,
-            component: () => import("@/components/NotFoundView.vue"),
-        };
+  "pharmacy/sales": {
+    "sales-list": ["saleslist"],
+  },
+};
+
+/**
+ * Membentuk indeks halaman dari hasil import.meta.glob.
+ */
+const pageIndex: PageStructure[] = Object.entries(pages)
+  .map(([path, loader]): PageStructure | null => {
+    const match = path.match(/^\.\.\/modules\/([^/]+)\/(?:([^/]+)\/)?views\/(.+)\.vue$/i);
+
+    if (!match) {
+      return null;
     }
 
-    const [componentPath, loader] = matches[0];
+    const [, module, domain, relativePath] = match;
+
+    const filename = relativePath.split("/").at(-1) ?? "";
 
     return {
-        path: url,
-        name: `Dynamic_${page}`,
-        component: loader,
-        meta: {
-            layout: "backend",
-            requiresAuth: true,
-            componentPath,
-        },
+      module: module.toLowerCase(),
+      domain: domain?.toLowerCase() ?? null,
+      filename: normalizeFilename(filename),
+      loader,
     };
-}
+  })
+  .filter((page): page is PageStructure => page !== null);
+
+/**
+ * Resolver halaman dinamis.
+ *
+ * Modul lama:
+ * /backend/navigation
+ *
+ * Modul berbasis domain:
+ * /pharmacy/master/categories
+ * /pharmacy/inventory/stock-movements
+ * /organization/master/organizations
  */
+export function resolveDynamicPage(url: string): DynamicPageLoader | null {
+  const segments = url
+    .split(/[?#]/, 1)[0]
+    .replace(/^\/+|\/+$/g, "")
+    .split("/")
+    .filter(Boolean);
 
+  // Hanya menerima:
+  // /module/page
+  // /module/domain/page
+  if (segments.length !== 2 && segments.length !== 3) {
+    return null;
+  }
 
-/*
-import type { Component } from "vue";
-import type { RouteRecordRaw } from "vue-router";
+  const moduleName = segments[0].toLowerCase();
 
-const pages = import.meta.glob<Component>(
-    "../modules//views//.vue"
-);
+  const domainName = segments.length === 3 ? segments[1].toLowerCase() : null;
 
-export function resolveDynamicPage(url: string): RouteRecordRaw {
-    const segments = url
-        .replace(/^\/+|\/+$/g, "")
-        .split("/")
-        .filter(Boolean);
+  const pageName = segments.at(-1)!.toLowerCase();
 
-    const moduleName = segments[0]?.toLowerCase() ?? "";
-    const pageName = segments[1]?.toLowerCase() ?? "";
+  // Normalisasi nama halaman URL.
+  const normalizedPage = normalizeSlug(pageName);
 
-    const matches = Object.entries(pages).filter(([path]) => {
-        const match = path.match(
-            /^\.\.\/modules\/([^/]+)\/views\/(.+)\.vue$/i
-        );
+  // Ambil alias berdasarkan module/domain.
+  const aliasKey = domainName ? `${moduleName}/${domainName}` : "";
 
-        if (!match) return false;
+  const aliases = pageAliases[aliasKey]?.[pageName] ?? [];
 
-        const [, folder, relativePath] = match;
+  const acceptedNames = new Set([normalizedPage, ...aliases.map(normalizeSlug)]);
 
-        const filename = relativePath
-            .split("/")
-            .at(-1)
-            ?.replace(/\.vue$/i, "")
-            .toLowerCase();
-
-        const currentModule = folder.toLowerCase();
-
-        // URL satu segmen: cari nama view berdasarkan nama module.
-        // URL dua segmen: cari nama view berdasarkan segmen kedua.
-        const expectedPage = pageName || moduleName;
-
-        return (
-            currentModule === moduleName &&
-            filename === `${expectedPage}view`
-        );
-    });
-
-    if (matches.length !== 1) {
-        return {
-            path: url,
-            name: `DynamicNotFound_${moduleName}_${pageName}`,
-            component: () => import("@/components/NotFoundView.vue"),
-            meta: {
-                layout: moduleName === "login" ? "auth" : "backend",
-                requiresAuth: moduleName !== "login",
-            },
-        };
+  // Cari halaman berdasarkan struktur URL.
+  const matches = pageIndex.filter((page) => {
+    // Modul harus sama.
+    if (page.module !== moduleName) {
+      return false;
     }
 
-    const [componentPath, loader] = matches[0];
+    // URL domain hanya boleh menemukan folder domain.
+    if (domainName !== null) {
+      if (page.domain !== domainName) {
+        return false;
+      }
+    } else {
+      // URL legacy hanya boleh menemukan views langsung.
+      if (page.domain !== null) {
+        return false;
+      }
+    }
 
-    return {
-        path: url,
-        name: `Dynamic_${moduleName}_${pageName || moduleName}`,
-        component: loader,
-        meta: {
-            layout: moduleName === "login" ? "auth" : "backend",
-            requiresAuth: moduleName !== "login",
-            componentPath,
-            module: moduleName,
-            page: pageName || moduleName,
-        },
-    };
-} */
+    return acceptedNames.has(page.filename);
+  });
 
+  // Jangan memilih halaman secara acak jika ambigu.
+  if (matches.length !== 1) {
+    if (import.meta.env.DEV) {
+      console.warn(
+        `[DynamicPageResolver] ${matches.length === 0 ? "Page not found" : "Ambiguous page"}: ${url}`,
+        matches.map((page) => ({
+          module: page.module,
+          domain: page.domain,
+          filename: page.filename,
+        })),
+      );
+    }
 
-    /* import type { Component } from "vue";
+    return null;
+  }
 
-export type DynamicPageLoader = () => Promise<Component>;
-
-const pages = import.meta.glob<Component>(
-    "../modules/views/*.vue",
-    // "../modules/views/*.vue",
-);
-
-export function resolveDynamicPage(
-    url: string,
-): DynamicPageLoader | null {
-    const segments = url
-        .replace(/^\/+|\/+$/g, "")
-        .split("/")
-        .filter(Boolean);
-
-    const moduleName = segments[0]?.toLowerCase() ?? "";
-    const pageName = segments[1]?.toLowerCase() ?? moduleName;
-
-    const matches = Object.entries(pages).filter(([path]) => {
-        const match = path.match(
-            /^\.\.\/modules\/([^/]+)\/views\/(.+)\.vue$/i,
-        );
-
-        if (!match) return false;
-
-        const [, folder, relativePath] = match;
-
-        const filename = relativePath
-            .split("/")
-            .at(-1)!
-            .replace(/\.vue$/i, "")
-            .toLowerCase();
-
-        return (
-            folder.toLowerCase() === moduleName &&
-            filename === `${pageName}view`
-        );
-    });
-
-    return matches.length === 1 ? matches[0][1] : null;
+  return matches[0].loader;
 }
- */

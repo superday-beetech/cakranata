@@ -1,4 +1,5 @@
 import api from "@/api/client";
+import type { ApiResponse } from "@/types/types";
 
 export interface Customer {
   id: number;
@@ -41,18 +42,11 @@ export interface CustomerListData {
   pagination: CustomerPagination;
 }
 
-export interface CustomerApiResponse<T> {
-  status: number | boolean;
-  error: boolean;
-  message: string | string[];
-  data?: T;
-  errors?: Record<string, string>;
-}
-
 export interface CustomerSearchParams {
   page?: number;
   per_page?: number;
   search?: string;
+  customer_type?: string;
   is_active?: number;
 }
 
@@ -60,33 +54,33 @@ const BASE_URL = "/pharmacy/customer-api";
 
 const customerService = {
   getAll(params: CustomerSearchParams = {}) {
-    return api.get<CustomerApiResponse<CustomerListData>>(BASE_URL, {
+    return api.get<ApiResponse<CustomerListData>>(BASE_URL, {
       params,
     });
   },
 
   getById(id: number) {
-    return api.get<CustomerApiResponse<Customer>>(
+    return api.get<ApiResponse<Customer>>(
       `${BASE_URL}/show/${id}`,
     );
   },
 
   create(payload: CustomerPayload) {
-    return api.post<CustomerApiResponse<Customer>>(
+    return api.post<ApiResponse<Customer>>(
       `${BASE_URL}/create`,
       payload,
     );
   },
 
   update(id: number, payload: CustomerPayload) {
-    return api.put<CustomerApiResponse<Customer>>(
+    return api.put<ApiResponse<Customer>>(
       `${BASE_URL}/update/${id}`,
       payload,
     );
   },
 
   delete(id: number) {
-    return api.delete<CustomerApiResponse<null>>(
+    return api.delete<ApiResponse<null>>(
       `${BASE_URL}/delete/${id}`,
     );
   },

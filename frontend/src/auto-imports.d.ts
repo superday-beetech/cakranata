@@ -72,14 +72,18 @@ declare global {
   const triggerRef: typeof import('vue').triggerRef
   const unref: typeof import('vue').unref
   const useAttrs: typeof import('vue').useAttrs
+  const useButtonSpin: typeof import('./composables/useButtonSpin').useButtonSpin
   const useCssModule: typeof import('vue').useCssModule
   const useCssVars: typeof import('vue').useCssVars
+  const useCurrencyInput: typeof import('./composables/useCurrencyInput').useCurrencyInput
+  const useDiscount: typeof import('./composables/useDiscount').useDiscount
   const useId: typeof import('vue').useId
   const useLink: typeof import('vue-router').useLink
   const useModalStore: typeof import('./composables/modal').useModalStore
   const useModel: typeof import('vue').useModel
   const useNotificationStore: typeof import('./composables/notification').useNotificationStore
   const useOffcanvasStore: typeof import('./composables/offcanvas').useOffcanvasStore
+  const useOption: typeof import('./composables/useOption').useOption
   const useRoute: typeof import('vue-router').useRoute
   const useRouter: typeof import('vue-router').useRouter
   const useSlots: typeof import('vue').useSlots
@@ -107,6 +111,15 @@ declare global {
   // @ts-ignore
   export type { OffcanvasPlacement, OffcanvasOptions } from './composables/offcanvas'
   import('./composables/offcanvas')
+  // @ts-ignore
+  export type { ButtonSpinOptions } from './composables/useButtonSpin'
+  import('./composables/useButtonSpin')
+  // @ts-ignore
+  export type { DiscountMode } from './composables/useDiscount'
+  import('./composables/useDiscount')
+  // @ts-ignore
+  export type { OptionValue, OptionItem } from './composables/useOption'
+  import('./composables/useOption')
   // @ts-ignore
   export type { ThemeMode } from './composables/useTheme'
   import('./composables/useTheme')
@@ -181,14 +194,18 @@ declare module 'vue' {
     readonly triggerRef: UnwrapRef<typeof import('vue')['triggerRef']>
     readonly unref: UnwrapRef<typeof import('vue')['unref']>
     readonly useAttrs: UnwrapRef<typeof import('vue')['useAttrs']>
+    readonly useButtonSpin: UnwrapRef<typeof import('./composables/useButtonSpin')['useButtonSpin']>
     readonly useCssModule: UnwrapRef<typeof import('vue')['useCssModule']>
     readonly useCssVars: UnwrapRef<typeof import('vue')['useCssVars']>
+    readonly useCurrencyInput: UnwrapRef<typeof import('./composables/useCurrencyInput')['useCurrencyInput']>
+    readonly useDiscount: UnwrapRef<typeof import('./composables/useDiscount')['useDiscount']>
     readonly useId: UnwrapRef<typeof import('vue')['useId']>
     readonly useLink: UnwrapRef<typeof import('vue-router')['useLink']>
     readonly useModalStore: UnwrapRef<typeof import('./composables/modal')['useModalStore']>
     readonly useModel: UnwrapRef<typeof import('vue')['useModel']>
     readonly useNotificationStore: UnwrapRef<typeof import('./composables/notification')['useNotificationStore']>
     readonly useOffcanvasStore: UnwrapRef<typeof import('./composables/offcanvas')['useOffcanvasStore']>
+    readonly useOption: UnwrapRef<typeof import('./composables/useOption')['useOption']>
     readonly useRoute: UnwrapRef<typeof import('vue-router')['useRoute']>
     readonly useRouter: UnwrapRef<typeof import('vue-router')['useRouter']>
     readonly useSlots: UnwrapRef<typeof import('vue')['useSlots']>

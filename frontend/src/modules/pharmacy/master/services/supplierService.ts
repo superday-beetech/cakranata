@@ -1,4 +1,5 @@
 import api from "@/api/client";
+import type { ApiResponse } from "@/types/types";
 
 export interface Supplier {
   id: number;
@@ -35,14 +36,6 @@ export interface SupplierListData {
   pagination: SupplierPagination;
 }
 
-export interface SupplierApiResponse<T> {
-  status: number;
-  error: boolean;
-  message: string | string[];
-  data?: T;
-  errors?: Record<string, string>;
-}
-
 const BASE_URL = "/pharmacy/supplier-api";
 
 const supplierService = {
@@ -52,31 +45,31 @@ const supplierService = {
     search?: string;
     is_active?: number;
   }) {
-    return api.get<SupplierApiResponse<SupplierListData>>(BASE_URL, {
+    return api.get<ApiResponse<SupplierListData>>(BASE_URL, {
       params,
     });
   },
 
   getById(id: number) {
-    return api.get<SupplierApiResponse<Supplier>>(`${BASE_URL}/show/${id}`);
+    return api.get<ApiResponse<Supplier>>(`${BASE_URL}/show/${id}`);
   },
 
   create(payload: SupplierPayload) {
-    return api.post<SupplierApiResponse<Supplier>>(
+    return api.post<ApiResponse<Supplier>>(
       `${BASE_URL}/create`,
       payload,
     );
   },
 
   update(id: number, payload: SupplierPayload) {
-    return api.put<SupplierApiResponse<Supplier>>(
+    return api.put<ApiResponse<Supplier>>(
       `${BASE_URL}/update/${id}`,
       payload,
     );
   },
 
   delete(id: number) {
-    return api.delete<SupplierApiResponse<null>>(
+    return api.delete<ApiResponse<null>>(
       `${BASE_URL}/delete/${id}`,
     );
   },

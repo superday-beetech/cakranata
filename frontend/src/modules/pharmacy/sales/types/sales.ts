@@ -1,21 +1,10 @@
 export type SaleStatus = "draft" | "held" | "posted" | "cancelled";
 export type PaymentStatus = "unpaid" | "partial" | "paid";
-export type PaymentMethod =
-  | "cash"
-  | "transfer"
-  | "qris"
-  | "debit"
-  | "credit"
-  | "other";
+export type PaymentMethod = "cash" | "transfer" | "qris" | "debit" | "credit" | "other";
 export type DiscountMode = "amount" | "percent";
 export type TaxMode = "amount" | "percent";
 export type SettlementMode = "paid" | "partial" | "receivable";
-export type AdditionalChargeType =
-  | "donation"
-  | "shipping"
-  | "packaging"
-  | "service"
-  | "other";
+export type AdditionalChargeType = "donation" | "shipping" | "packaging" | "service" | "other";
 
 export type NumericValue = number | string;
 
@@ -24,6 +13,7 @@ export interface SaleItemInput {
   quantity: number;
   unit_price: number;
   discount_amount?: number;
+  notes?: string | null;
 }
 
 export interface PosAdditionalCharge {
@@ -34,28 +24,29 @@ export interface PosAdditionalCharge {
   amount: number;
 }
 
-export interface PosDiscountInput {
-  mode: DiscountMode;
-  value: number;
-}
-
-export interface PosTaxInput {
-  mode: TaxMode;
-  value: number;
-}
-
 export interface CreateSalePayload {
   customer_id?: number | null;
   sale_date?: string;
+  discount_amount?: number;
   tax_amount?: number;
   notes?: string | null;
   items: SaleItemInput[];
 }
 
 export interface PostSalePayload {
+  settlement_mode: SettlementMode;
+
   amount: number;
-  payment_method: PaymentMethod;
-  reference_number?: string | null;
+  applied_amount: number;
+  amount_received: number;
+  change_amount: number;
+
+  payment_method: PaymentMethod | null;
+
+  reference_number: string | null;
+  due_date: string | null;
+
+  payment_confirmed: boolean;
 }
 
 export interface SaleItem {
@@ -68,6 +59,7 @@ export interface SaleItem {
   barcode?: string | null;
   batch_number?: string | null;
   expired_at?: string | null;
+  notes?: string | null;
 
   quantity: NumericValue;
   unit_price: NumericValue;
@@ -90,6 +82,11 @@ export interface Sale {
   tax_amount: NumericValue;
   total_amount: NumericValue;
   paid_amount: NumericValue;
+
+  settlement_mode: SettlementMode;
+  amount_received: NumericValue;
+  change_amount: NumericValue;
+  due_date?: string | null;
 
   payment_status: PaymentStatus;
   payment_method?: PaymentMethod | null;
@@ -131,20 +128,6 @@ export interface PosCartItem {
 
   notes?: string | null;
   available_stock?: NumericValue;
-}
-
-export interface PosSummary {
-  subtotal: number;
-  itemDiscount: number;
-  transactionDiscount: number;
-  discount: number;
-  dpp: number;
-  tax: number;
-  additionalCharges: number;
-  total: number;
-  paid: number;
-  change: number;
-  receivable: number;
 }
 
 export interface ProductSearchResult {

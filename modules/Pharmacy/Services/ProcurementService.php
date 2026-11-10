@@ -167,9 +167,35 @@ class ProcurementService
     private function validatePurchaseOrder(array $data): void
     {
         foreach (['order_number', 'supplier_id', 'order_date', 'items'] as $field) {
-            if (!isset($data[$field]) || $data[$field] === '') {
+            if (
+                !isset($data[$field]) ||
+                (is_string($data[$field]) && trim($data[$field]) === '') ||
+                $data[$field] === ''
+            ) {
                 throw new RuntimeException(
                     "Field {$field} wajib diisi."
+                );
+            }
+        }
+
+        if (!is_numeric($data['supplier_id']) || (int) $data['supplier_id'] <= 0) {
+            throw new RuntimeException('Supplier tidak valid.');
+        }
+
+        if (!$this->isValidDate($data['order_date'])) {
+            throw new RuntimeException('Tanggal order tidak valid.');
+        }
+
+        $expectedDate = $data['expected_date'] ?? null;
+
+        if ($expectedDate !== null && $expectedDate !== '') {
+            if (!$this->isValidDate($expectedDate)) {
+                throw new RuntimeException('Tanggal estimasi tidak valid.');
+            }
+
+            if ($expectedDate < $data['order_date']) {
+                throw new RuntimeException(
+                    'Tanggal estimasi tidak boleh sebelum tanggal order.'
                 );
             }
         }
@@ -180,24 +206,68 @@ class ProcurementService
             );
         }
 
-        foreach ($data['items'] as $item) {
+        foreach ($data['items'] as $index => $item) {
+            if (!is_array($item)) {
+                throw new RuntimeException(
+                    'Format item Purchase Order tidak valid.'
+                );
+            }
+
             foreach (['product_id', 'quantity', 'unit_cost'] as $field) {
                 if (!isset($item[$field]) || !is_numeric($item[$field])) {
                     throw new RuntimeException(
-                        "Data item {$field} tidak valid."
+                        "Item " . ($index + 1) . ": {$field} tidak valid."
                     );
                 }
             }
 
+            $productId = (float) $item['product_id'];
+            $quantity = (float) $item['quantity'];
+            $unitCost = (float) $item['unit_cost'];
+            $discount = (float) ($item['discount_amount'] ?? 0);
+
             if (
-                (float) $item['quantity'] <= 0 ||
-                (float) $item['unit_cost'] < 0
+                $productId <= 0 ||
+                floor($productId) !== $productId
             ) {
+                throw new RuntimeException(
+                    'Product ID tidak valid.'
+                );
+            }
+
+            if ($quantity <= 0 || $unitCost < 0) {
                 throw new RuntimeException(
                     'Quantity harus positif dan harga tidak boleh negatif.'
                 );
             }
+
+            if (!is_numeric($item['discount_amount'] ?? 0) || $discount < 0) {
+                throw new RuntimeException(
+                    'Diskon item tidak valid.'
+                );
+            }
         }
+
+        $discountAmount = $data['discount_amount'] ?? 0;
+        $taxAmount = $data['tax_amount'] ?? 0;
+
+        if (
+            !is_numeric($discountAmount) ||
+            !is_numeric($taxAmount) ||
+            (float) $discountAmount < 0 ||
+            (float) $taxAmount < 0
+        ) {
+            throw new RuntimeException(
+                'Nilai diskon atau pajak tidak valid.'
+            );
+        }
+    }
+
+    private function isValidDate(string $date): bool
+    {
+        $parsed = \DateTime::createFromFormat('!Y-m-d', $date);
+
+        return $parsed !== false && $parsed->format('Y-m-d') === $date;
     }
     /**
      * Update Purchase Order.

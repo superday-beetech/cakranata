@@ -2,9 +2,9 @@
 import { onMounted, ref } from "vue";
 
 import GoodsReceiptBatchModal from "./GoodsReceiptBatchModal.vue";
-import goodsReceiptService, { type GoodsReceiptPostPayload } from "../services/goodsReceiptService.js";
+import goodsReceiptService, { type GoodsReceiptPostPayload } from "../services/goodsReceiptService";
 
-import type { GoodsReceipt } from "../types/goodsReceipt.js";
+import type { GoodsReceipt } from "../types/goodsReceipt";
 
 import { notify } from "@/utils/notification";
 

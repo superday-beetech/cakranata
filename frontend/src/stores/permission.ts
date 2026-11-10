@@ -43,74 +43,64 @@ export const usePermissionStore = defineStore("permission", {
 });
  */
 
-
 import { defineStore } from "pinia";
 import api from "@/api/client";
 
 interface ApiResponse<T = unknown> {
-    status: number;
-    error: boolean;
-    message: string | string[];
-    data?: T;
+  status: number;
+  error: boolean;
+  message: string | string[];
+  data?: T;
 }
 
 interface PermissionState {
-    permissions: string[];
-    loaded: boolean;
-    loading: boolean;
+  permissions: string[];
+  loaded: boolean;
+  loading: boolean;
 }
 
 export const usePermissionStore = defineStore("permission", {
-    state: (): PermissionState => ({
-        permissions: [],
-        loaded: false,
-        loading: false,
-    }),
+  state: (): PermissionState => ({
+    permissions: [],
+    loaded: false,
+    loading: false,
+  }),
 
-    getters: {
-        hasPermission: (state) => (permission: string) =>
-            state.permissions.includes(permission),
+  getters: {
+    hasPermission: (state) => (permission: string) => state.permissions.includes(permission),
 
-        hasAnyPermission: (state) => (permissions: string[]) =>
-            permissions.some((permission) =>
-                state.permissions.includes(permission)
-            ),
+    hasAnyPermission: (state) => (permissions: string[]) => permissions.some((permission) => state.permissions.includes(permission)),
 
-        hasAllPermissions: (state) => (permissions: string[]) =>
-            permissions.every((permission) =>
-                state.permissions.includes(permission)
-            ),
+    hasAllPermissions: (state) => (permissions: string[]) => permissions.every((permission) => state.permissions.includes(permission)),
+  },
+
+  actions: {
+    async load(): Promise<void> {
+      if (this.loaded) return;
+      if (this.loading) return;
+
+      this.loading = true;
+
+      try {
+        // Sesuaikan URL ini dengan endpoint permission RBAC CI4.
+        const response = await api.get<ApiResponse<string[]>>("/rbac/permissions/get-index");
+
+        this.permissions = response.data.data ?? [];
+        this.loaded = true;
+      } finally {
+        this.loading = false;
+      }
     },
 
-    actions: {
-        async load(): Promise<void> {
-            if (this.loaded) return;
-            if (this.loading) return;
-
-            this.loading = true;
-
-            try {
-                // Sesuaikan URL ini dengan endpoint permission RBAC CI4.
-                const response = await api.get<ApiResponse<string[]>>(
-                    "/rbac/permissions"
-                );
-
-                this.permissions = response.data.data ?? [];
-                this.loaded = true;
-            } finally {
-                this.loading = false;
-            }
-        },
-
-        setPermissions(permissions: string[]): void {
-            this.permissions = permissions;
-            this.loaded = true;
-        },
-
-        reset(): void {
-            this.permissions = [];
-            this.loaded = false;
-            this.loading = false;
-        },
+    setPermissions(permissions: string[]): void {
+      this.permissions = permissions;
+      this.loaded = true;
     },
+
+    reset(): void {
+      this.permissions = [];
+      this.loaded = false;
+      this.loading = false;
+    },
+  },
 });

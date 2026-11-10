@@ -11,8 +11,8 @@ const shortcuts = [
   { key: "F1", label: "Cari produk / scan barcode" },
   { key: "F2", label: "Fokus pelanggan" },
   { key: "F3", label: "Fokus keranjang" },
-  { key: "F4", label: "Fokus diskon transaksi" },
-  { key: "F5", label: "Fokus biaya tambahan" },
+  { key: "F4", label: "Diskon transaksi" },
+  { key: "F5", label: "Biaya tambahan" },
   { key: "F6", label: "Mode pembayaran" },
   { key: "F7", label: "Metode pembayaran" },
   { key: "F8", label: "Nominal pembayaran" },
@@ -25,14 +25,14 @@ const shortcuts = [
 </script>
 
 <template>
-  <section v-if="visible" class="pos-shortcut-panel" aria-label="Bantuan keyboard shortcut">
-    <div class="pos-shortcut-heading">
+  <section v-if="visible" class="card pos-shortcut-panel" aria-label="Bantuan keyboard shortcut">
+    <div class="pos-shortcut-head">
       <div>
-        <strong>Keyboard Shortcuts</strong>
-        <p>Gunakan tombol berikut untuk mempercepat proses kasir.</p>
+        <h6 class="mb-0">Keyboard shortcut</h6>
+        <small>Gunakan tombol berikut untuk mempercepat kasir.</small>
       </div>
 
-      <button type="button" class="pos-icon-button" aria-label="Tutup bantuan shortcut" @click="emit('close')">
+      <button type="button" class="btn btn-soft-secondary btn-icon btn-sm" aria-label="Tutup bantuan shortcut" @click="emit('close')">
         <i class="ti ti-x"></i>
       </button>
     </div>

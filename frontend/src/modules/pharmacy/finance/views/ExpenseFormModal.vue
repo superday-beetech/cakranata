@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, reactive } from "vue";
-import type { ExpensePayload } from "../services/financeService";
+import type { ExpensePayload } from "../types/finance";
 
 const props = defineProps<{
   expenseNumber: string;

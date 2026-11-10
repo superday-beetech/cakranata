@@ -48,9 +48,6 @@ class AccessChecker
         }
 
         $httpVerb = strtoupper($this->request->getMethod());
-        $user     = null;
-        /* print_r(service('routeRegistryAccess')->inspectEndpoint($this->module, $endpoint, $httpVerb));
-        exit; */
         // 1. Periksa Route Registry.
         try {
             $registry = service('routeRegistryAccess');
@@ -164,9 +161,9 @@ class AccessChecker
         }
 
         // 6. Autentikasi.
-        /*  $user = $this->authenticationResolver->getAuthenticatedUser(); */
+        $user = $this->authenticationResolver->getAuthenticatedUser();
 
-        $user = $this->authenticationResolver->getSessionUser();
+        // $user = $this->authenticationResolver->getSessionUser();
         if ($user === null) {
             return $this->decision(
                 false,
@@ -562,55 +559,5 @@ class AccessChecker
             ->where('user_id', $userId)
             ->whereIn('group', $groups)
             ->countAllResults() > 0;
-    }
-
-
-    private function isPublicEndpoint(string $endpoint): bool
-    {
-        $endpoint = trim($endpoint, '/');
-
-        if ($endpoint === '') {
-            $endpoint = '/';
-        }
-
-        $method = strtoupper(
-            $this->request->getMethod()
-        );
-
-        foreach ($this->policy->publicPatterns as $pattern) {
-            $pattern = trim((string) $pattern);
-
-            if ($pattern === '') {
-                continue;
-            }
-
-            $patternMethod = null;
-
-            if (preg_match('/^([A-Z]+)\s+(.+)$/i', $pattern, $matches)) {
-                $patternMethod = strtoupper($matches[1]);
-                $pattern = trim($matches[2]);
-            }
-
-            if (
-                $patternMethod !== null
-                && $patternMethod !== $method
-            ) {
-                continue;
-            }
-
-            $regex = preg_quote(trim($pattern, '/'), '#');
-
-            $regex = str_replace(
-                ['\*\*', '\*'],
-                ['.*', '[^/]+'],
-                $regex
-            );
-
-            if (preg_match('#^' . $regex . '$#', $endpoint)) {
-                return true;
-            }
-        }
-
-        return false;
     }
 }

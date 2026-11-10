@@ -1,93 +1,53 @@
 <script setup lang="ts">
-type TaxMode = "amount" | "percent";
+import { formatCurrency } from "../../utils/format";
+import type { DiscountMode } from "../../types/sales";
+import { calculateDiscount } from "../../utils/posMath";
 
-defineProps<{
-  mode: TaxMode;
+const props = defineProps<{
+  mode: DiscountMode;
   value: number;
   baseAmount: number;
   disabled?: boolean;
 }>();
 
 const emit = defineEmits<{
-  "update:mode": [value: TaxMode];
+  "update:mode": [value: DiscountMode];
   "update:value": [value: number];
 }>();
+
+function previewAmount(): number {
+  return calculateDiscount(Math.max(0, props.baseAmount), props.mode, props.value);
+}
 
 function updateValue(event: Event): void {
   const raw = Number((event.target as HTMLInputElement).value);
   emit("update:value", Number.isFinite(raw) ? Math.max(0, raw) : 0);
 }
+
+/* function previewAmount(): number {
+  const base = Math.max(0, props.baseAmount);
+  const value = Math.max(0, props.value);
+
+  return props.mode === "percent" ? Math.round((base * Math.min(value, 100)) / 100) : Math.min(value, base);
+} */
 </script>
 
 <template>
-  <div class="pos-field">
-    <label>Diskon Transaksi</label>
+  <div class="pos-inline-field">
+    <label class="form-label mb-0" for="pos-transaction-discount">Diskon transaksi</label>
 
-    <div class="pos-input-group">
-      <select :value="mode" :disabled="disabled" @change="emit('update:mode', ($event.target as HTMLSelectElement).value as TaxMode)">
+    <div class="input-group">
+      <select class="form-select" :value="mode" :disabled="disabled" aria-label="Jenis diskon transaksi" @change="emit('update:mode', ($event.target as HTMLSelectElement).value as DiscountMode)">
         <option value="percent">%</option>
         <option value="amount">Rp</option>
       </select>
 
-      <input type="number" min="0" :max="mode === 'percent' ? 100 : undefined" step="0.01" :value="value" :disabled="disabled" placeholder="0" @input="updateValue" />
+      <input id="pos-transaction-discount" type="number" class="form-control" min="0" :max="mode === 'percent' ? 100 : undefined" step="0.01" :value="value" :disabled="disabled" placeholder="0" @input="updateValue" />
     </div>
 
     <small>
-      Dasar pengenaan pajak:
-      {{ new Intl.NumberFormat("id-ID").format(baseAmount) }}
+      Dari dasar {{ formatCurrency(baseAmount) }}, potongan
+      <strong>{{ formatCurrency(previewAmount()) }}</strong>
     </small>
   </div>
 </template>
-
-<style scoped>
-.pos-field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.pos-field label {
-  color: #475569;
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.pos-input-group {
-  display: flex;
-  min-width: 0;
-}
-
-.pos-input-group select,
-.pos-input-group input {
-  background: white;
-  border: 1px solid #dbe1e8;
-  font-size: 12px;
-  min-height: 36px;
-  padding: 7px 9px;
-}
-
-.pos-input-group select {
-  border-radius: 7px 0 0 7px;
-  color: #475569;
-  min-width: 65px;
-}
-
-.pos-input-group input {
-  border-left: 0;
-  border-radius: 0 7px 7px 0;
-  min-width: 0;
-  text-align: right;
-  width: 100%;
-}
-
-.pos-input-group input:focus,
-.pos-input-group select:focus {
-  border-color: #2563eb;
-  outline: none;
-}
-
-.pos-field small {
-  color: #94a3b8;
-  font-size: 10px;
-}
-</style>

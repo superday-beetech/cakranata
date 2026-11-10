@@ -1,0 +1,1 @@
+import{s as e,t}from"./main-6kgjY3Mz.js";var n={success(n,r={}){return t(e).success(n,r)},error(n,r={}){return t(e).error(n,r)},warning(n,r={}){return t(e).warning(n,r)},info(n,r={}){return t(e).info(n,r)}};export{n as t};

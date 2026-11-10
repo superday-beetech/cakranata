@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, reactive } from "vue";
-import type { SupplierPaymentPayload } from "../services/financeService";
+import type { SupplierPaymentPayload } from "../types/finance";
 
 interface SupplierOption {
   id: number;

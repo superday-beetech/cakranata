@@ -23,11 +23,18 @@ class SaleModel extends PharmacyModel
         'tax_amount',
         'total_amount',
         'paid_amount',
+        'amount_received',
+        'change_amount',
+        'settlement_mode',
         'payment_status',
         'payment_method',
         'reference_number',
+        'due_date',
         'notes',
         'created_by',
         'updated_by',
     ];
+
+    protected $createdField  = 'created_at';
+    protected $updatedField  = 'updated_at';
 }

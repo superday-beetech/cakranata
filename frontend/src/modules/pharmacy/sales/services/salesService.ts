@@ -1,12 +1,6 @@
-
 import api from "@/api/client";
 
-import type {
-  CreateSalePayload,
-  PostSalePayload,
-  Sale,
-  SalesListResponse,
-} from "../types/sales";
+import type { CreateSalePayload, PostSalePayload, Sale, SalesListResponse } from "../types/sales";
 
 const BASE_URL = "/pharmacy/sales-api";
 
@@ -26,61 +20,41 @@ export interface SalesFilters {
 }
 
 export const salesService = {
-  async getSales(
-    filters: SalesFilters = {},
-  ): Promise<SalesListResponse> {
-    const response = await api.get<ApiResponse<SalesListResponse>>(
-      BASE_URL,
-      { params: filters },
-    );
+  async getSales(filters: SalesFilters = {}): Promise<SalesListResponse> {
+    const response = await api.get<ApiResponse<SalesListResponse>>(BASE_URL, { params: filters });
 
     return response.data.data;
   },
 
   async getSale(id: number): Promise<Sale> {
-    const response = await api.get<ApiResponse<Sale>>(
-      `${BASE_URL}/${id}`,
-    );
+    const response = await api.get<ApiResponse<Sale>>(`${BASE_URL}/${id}`);
 
     return response.data.data;
   },
 
   async createSale(payload: CreateSalePayload): Promise<Sale> {
-    const response = await api.post<ApiResponse<Sale>>(
-      BASE_URL,
-      payload,
-    );
+    const response = await api.post<ApiResponse<Sale>>(`${BASE_URL}/create`, payload);
 
     return response.data.data;
   },
 
-  async postSale(
-    id: number,
-    payload: PostSalePayload,
-  ): Promise<Sale> {
-    const response = await api.post<ApiResponse<Sale>>(
-      `${BASE_URL}/${id}/post`,
-      payload,
-    );
+  async postSale(id: number, payload: PostSalePayload): Promise<Sale> {
+    const response = await api.post<ApiResponse<Sale>>(`${BASE_URL}/post/${id}`, payload);
 
     return response.data.data;
   },
 
   async holdSale(id: number): Promise<Sale> {
-    const response = await api.post<ApiResponse<Sale>>(
-        `${BASE_URL}/${id}/hold`,
-    );
+    const response = await api.post<ApiResponse<Sale>>(`${BASE_URL}/hold/${id}`);
 
     return response.data.data;
-},
+  },
 
-async resumeSale(id: number): Promise<Sale> {
-    const response = await api.post<ApiResponse<Sale>>(
-        `${BASE_URL}/${id}/resume`,
-    );
+  async resumeSale(id: number): Promise<Sale> {
+    const response = await api.post<ApiResponse<Sale>>(`${BASE_URL}/resume/${id}`);
 
     return response.data.data;
-},
+  },
 };
 
 export default salesService;

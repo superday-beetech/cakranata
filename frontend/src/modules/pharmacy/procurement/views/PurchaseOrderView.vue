@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from "vue";
+import { computed, onMounted, reactive, ref } from "vue";
 
 import api from "@/api/client";
 import { notify } from "@/utils/notification";
@@ -9,6 +9,9 @@ import purchaseOrderService from "../services/purchaseOrderService";
 
 import PurchaseOrderFormModal from "../components/PurchaseOrderFormModal.vue";
 import PurchaseOrderDetailModal from "../components/PurchaseOrderDetailModal.vue";
+
+import OptionSelect from "@/components/ui/OptionSelect.vue";
+import type { OptionItem } from "@/composables/useOption";
 
 import type { CreatePurchaseOrderPayload, PurchaseOrder, PurchaseOrderPagination } from "../types/purchaseOrder";
 
@@ -58,6 +61,29 @@ function extractList<T>(response: any): T[] {
 
   return [];
 }
+
+const supplierFilterOptions = computed<OptionItem[]>(() => [
+  {
+    value: "",
+    label: "Semua Supplier",
+  },
+  ...suppliers.value.map((supplier) => ({
+    value: String(supplier.id),
+    label: supplier.name,
+    description: supplier.code ?? undefined,
+    keywords: supplier.code ?? "",
+  })),
+]);
+
+const statusFilterOptions: OptionItem[] = [
+  { value: "", label: "Semua Status" },
+  { value: "draft", label: "Draft" },
+  { value: "approved", label: "Approved" },
+  { value: "ordered", label: "Ordered" },
+  { value: "partial", label: "Partially Received" },
+  { value: "received", label: "Received" },
+  { value: "cancelled", label: "Cancelled" },
+];
 
 async function loadMasterOptions() {
   try {
@@ -199,8 +225,9 @@ function formatDate(value?: string | null) {
 function statusClass(status: string) {
   const classes: Record<string, string> = {
     draft: "bg-light-secondary text-secondary",
+    approved: "bg-light-info text-info",
     ordered: "bg-light-primary text-primary",
-    partially_received: "bg-light-warning text-warning",
+    partial: "bg-light-warning text-warning",
     received: "bg-light-success text-success",
     cancelled: "bg-light-danger text-danger",
   };
@@ -314,27 +341,17 @@ onMounted(async () => {
 
           <div class="col-lg-3">
             <label class="form-label">Supplier</label>
-            <select v-model="filters.supplier_id" class="form-select">
-              <option value="">Semua Supplier</option>
-              <option v-for="supplier in suppliers" :key="supplier.id" :value="String(supplier.id)">
-                {{ supplier.name }}
-              </option>
-            </select>
+
+            <OptionSelect v-model="filters.supplier_id" :options="supplierFilterOptions" placeholder="Semua Supplier" search-placeholder="Cari supplier..." empty-text="Supplier tidak ditemukan" />
           </div>
 
-          <div class="col-lg-2">
+          <div class="col-lg-3">
             <label class="form-label">Status</label>
-            <select v-model="filters.status" class="form-select">
-              <option value="">Semua Status</option>
-              <option value="draft">Draft</option>
-              <option value="ordered">Ordered</option>
-              <option value="partially_received">Partially Received</option>
-              <option value="received">Received</option>
-              <option value="cancelled">Cancelled</option>
-            </select>
+
+            <OptionSelect v-model="filters.status" :options="statusFilterOptions" placeholder="Semua Status" search-placeholder="Cari status..." empty-text="Status tidak ditemukan" />
           </div>
 
-          <div class="col-lg-3 d-flex gap-2">
+          <div class="col-lg-2 d-flex gap-2">
             <button type="button" class="btn btn-primary flex-fill" @click="searchOrders">
               <i class="ti ti-search me-1"></i>
               Cari

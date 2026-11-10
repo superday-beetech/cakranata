@@ -4,7 +4,8 @@ import api from "@/api/client";
 import { notify } from "@/utils/notification";
 import { useModalStore } from "@/composables/modal";
 
-import financeService, { type CustomerPaymentPayload } from "../services/financeService";
+import financeService from "../services/financeService";
+import type { CustomerPaymentPayload } from "../types/finance";
 
 import CustomerPaymentFormModal, { type CustomerOption } from "./CustomerPaymentFormModal.vue";
 

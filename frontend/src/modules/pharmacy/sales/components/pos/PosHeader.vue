@@ -1,160 +1,106 @@
 <script setup lang="ts">
-defineProps<{
-  saleNumber?: string | null;
-  status?: string;
-  processing?: boolean;
-}>();
+import { computed } from "vue";
+
+const props = withDefaults(
+  defineProps<{
+    saleNumber?: string | null;
+    status?: string;
+    processing?: boolean;
+    loadingHeld?: boolean;
+    /** Tombol "Tahan" aktif hanya saat transaksi berstatus draft. */
+    canHold?: boolean;
+    /** Tombol "Transaksi Baru" aktif setelah transaksi diposting. */
+    canNew?: boolean;
+    clockTime?: string;
+    greeting?: string;
+    soundEnabled?: boolean;
+    cashierName?: string;
+  }>(),
+  { canHold: true, canNew: true, soundEnabled: true },
+);
 
 const emit = defineEmits<{
   newTransaction: [];
   holdTransaction: [];
   refresh: [];
+  back: [];
+  toggleSound: [];
+  toggleShortcuts: [];
 }>();
+
+const statusClass = computed(() => {
+  if (props.status === "Selesai") return "is-done";
+  if (props.status === "Draft") return "is-draft";
+  return "is-new";
+});
 </script>
 
 <template>
   <header class="pos-header">
-    <div class="pos-header-title">
-      <div class="pos-header-icon">
-        <i class="ti ti-cash-register"></i>
-      </div>
+    <div class="pos-header-brand">
+      <button type="button" class="btn btn-soft-secondary btn-icon" title="Kembali ke dashboard" aria-label="Kembali ke dashboard" @click="emit('back')">
+        <i class="ti ti-arrow-left"></i>
+      </button>
 
-      <div>
-        <h4>Point of Sale</h4>
-        <div class="pos-header-meta">
-          <span>Kasir Penjualan</span>
-          <span v-if="saleNumber">· {{ saleNumber }}</span>
-          <span v-if="status" class="pos-status">{{ status }}</span>
-        </div>
+      <span class="pos-logo" aria-hidden="true"><i class="ti ti-receipt"></i></span>
+
+      <div class="pos-header-title">
+        <h1>Point of Sale</h1>
+        <small>ACN Pharmacy</small>
+      </div>
+    </div>
+
+    <div class="pos-header-meta">
+      <div class="pos-header-trx">
+        <small>Transaksi</small>
+        <strong>{{ saleNumber || "Transaksi baru" }}</strong>
+        <span v-if="status" class="pos-chip" :class="statusClass">{{ status }}</span>
+      </div>
+      <div v-if="cashierName" class="pos-header-cashier" title="Kasir yang sedang bertugas">
+        <i class="ti ti-user-circle"></i>
+        <small>Kasir</small>
+        <strong>...</strong>
       </div>
     </div>
 
     <div class="pos-header-actions">
-      <button type="button" class="pos-header-button" :disabled="processing" @click="emit('refresh')">
-        <i class="ti ti-refresh"></i>
-        <span>Muat Ulang</span>
+      <div v-if="clockTime" class="pos-clock">
+        <strong>{{ clockTime }}</strong>
+        <small v-if="greeting">{{ greeting }}</small>
+      </div>
+
+      <span class="pos-header-divider" aria-hidden="true"></span>
+
+      <button type="button" class="btn btn-soft-secondary btn-icon" title="Bantuan shortcut" aria-label="Bantuan shortcut" @click="emit('toggleShortcuts')">
+        <i class="ti ti-keyboard"></i>
       </button>
 
-      <button type="button" class="pos-header-button" :disabled="processing" @click="emit('holdTransaction')">
+      <button type="button" class="btn btn-soft-secondary btn-icon" title="Muat ulang transaksi tertahan" aria-label="Muat ulang transaksi tertahan" :disabled="loadingHeld" @click="emit('refresh')">
+        <i class="ti ti-refresh"></i>
+      </button>
+
+      <button
+        type="button"
+        class="btn btn-soft-secondary btn-icon"
+        :title="soundEnabled ? 'Matikan suara' : 'Aktifkan suara'"
+        :aria-label="soundEnabled ? 'Matikan suara' : 'Aktifkan suara'"
+        :aria-pressed="soundEnabled"
+        @click="emit('toggleSound')"
+      >
+        <i :class="soundEnabled ? 'ti ti-volume' : 'ti ti-volume-off'"></i>
+      </button>
+
+      <button type="button" class="btn btn-soft-primary" :disabled="processing || !canHold" @click="emit('holdTransaction')">
         <i class="ti ti-player-pause"></i>
-        <span>Tahan</span>
+        <span class="btn-label">Tahan</span>
         <kbd>F10</kbd>
       </button>
 
-      <button type="button" class="pos-header-button primary" :disabled="processing" @click="emit('newTransaction')">
+      <button type="button" class="btn btn-primary" :disabled="processing || !canNew" @click="emit('newTransaction')">
         <i class="ti ti-plus"></i>
-        <span>Transaksi Baru</span>
+        <span class="btn-label">Transaksi baru</span>
         <kbd>F11</kbd>
       </button>
     </div>
   </header>
 </template>
-
-<style>
-.pos-header {
-  align-items: center;
-  background: white;
-  border: 1px solid #e5e7eb;
-  border-radius: 11px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 14px;
-  justify-content: space-between;
-  margin-bottom: 16px;
-  padding: 14px 16px;
-}
-
-.pos-header-title,
-.pos-header-actions {
-  align-items: center;
-  display: flex;
-  gap: 11px;
-}
-
-.pos-header-icon {
-  align-items: center;
-  background: #eff6ff;
-  border-radius: 9px;
-  color: #2563eb;
-  display: flex;
-  font-size: 23px;
-  height: 43px;
-  justify-content: center;
-  width: 43px;
-}
-
-.pos-header-title h4 {
-  color: #1e293b;
-  font-size: 16px;
-  font-weight: 800;
-  margin: 0 0 4px;
-}
-
-.pos-header-meta {
-  align-items: center;
-  color: #94a3b8;
-  display: flex;
-  flex-wrap: wrap;
-  font-size: 10px;
-  gap: 5px;
-}
-
-.pos-status {
-  background: #f1f5f9;
-  border-radius: 4px;
-  color: #475569;
-  font-weight: 700;
-  padding: 3px 6px;
-}
-
-.pos-header-button {
-  align-items: center;
-  background: white;
-  border: 1px solid #dbe1e8;
-  border-radius: 7px;
-  color: #475569;
-  display: inline-flex;
-  font-size: 11px;
-  font-weight: 650;
-  gap: 6px;
-  min-height: 35px;
-  padding: 7px 10px;
-}
-
-.pos-header-button.primary {
-  background: #2563eb;
-  border-color: #2563eb;
-  color: white;
-}
-
-.pos-header-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.5;
-}
-
-kbd {
-  background: #f1f5f9;
-  border: 1px solid #dbe1e8;
-  border-radius: 3px;
-  font-family: inherit;
-  font-size: 9px;
-  padding: 2px 4px;
-}
-
-.primary kbd {
-  background: #1d4ed8;
-  border-color: #60a5fa;
-  color: white;
-}
-
-@media (max-width: 650px) {
-  .pos-header {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .pos-header-actions {
-    flex-wrap: wrap;
-  }
-}
-</style>

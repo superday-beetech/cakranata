@@ -1,11 +1,7 @@
 import { computed, type Ref } from "vue";
 
-import type {
-  PosCartItem,
-  PosAdditionalCharge,
-  DiscountMode,
-  TaxMode,
-} from "../types/sales";
+import type { PosCartItem, PosAdditionalCharge, DiscountMode, TaxMode } from "../types/sales";
+import { calculateDiscount, calculateTax, itemDiscountAmount, itemGross, nonNegative } from "../utils/posMath";
 
 export interface PosCalculationOptions {
   items: Ref<PosCartItem[]>;
@@ -19,45 +15,12 @@ export interface PosCalculationOptions {
   additionalCharges: Ref<PosAdditionalCharge[]>;
 }
 
-function toNumber(value: unknown): number {
-  const number = Number(value);
-  return Number.isFinite(number) ? number : 0;
-}
-
-function nonNegative(value: unknown): number {
-  return Math.max(0, toNumber(value));
-}
-
-function calculateDiscount(
-  base: number,
-  mode: DiscountMode,
-  value: number,
-): number {
-  const amount = nonNegative(value);
-
-  if (base <= 0 || amount <= 0) {
-    return 0;
-  }
-
-  const discount =
-    mode === "percent"
-      ? base * (Math.min(amount, 100) / 100)
-      : amount;
-
-  return Math.min(base, discount);
-}
-
 export function usePosCalculation(options: PosCalculationOptions) {
   /**
    * Nilai kotor seluruh barang sebelum diskon.
    */
   const subtotal = computed(() => {
-    return options.items.value.reduce((total, item) => {
-      const quantity = nonNegative(item.quantity);
-      const price = nonNegative(item.unit_price);
-
-      return total + quantity * price;
-    }, 0);
+    return options.items.value.reduce((total, item) => total + itemGross(item), 0);
   });
 
   /**
@@ -67,21 +30,7 @@ export function usePosCalculation(options: PosCalculationOptions) {
    * Jika tidak, gunakan discount_amount untuk kompatibilitas data lama.
    */
   const itemDiscount = computed(() => {
-    return options.items.value.reduce((total, item) => {
-      const gross = nonNegative(item.quantity) *
-        nonNegative(item.unit_price);
-
-      const discount =
-        item.discount_mode && item.discount_value !== undefined
-          ? calculateDiscount(
-              gross,
-              item.discount_mode,
-              item.discount_value,
-            )
-          : Math.min(gross, nonNegative(item.discount_amount));
-
-      return total + discount;
-    }, 0);
+    return options.items.value.reduce((total, item) => total + itemDiscountAmount(item), 0);
   });
 
   /**
@@ -95,11 +44,7 @@ export function usePosCalculation(options: PosCalculationOptions) {
    * Diskon keseluruhan transaksi.
    */
   const transactionDiscount = computed(() => {
-    return calculateDiscount(
-      afterItemDiscount.value,
-      options.transactionDiscountMode.value,
-      options.transactionDiscountValue.value,
-    );
+    return calculateDiscount(afterItemDiscount.value, options.transactionDiscountMode.value, options.transactionDiscountValue.value);
   });
 
   /**
@@ -120,13 +65,7 @@ export function usePosCalculation(options: PosCalculationOptions) {
    * Pajak dapat berupa nominal rupiah atau persentase.
    */
   const taxAmount = computed(() => {
-    const value = nonNegative(options.taxValue.value);
-
-    if (options.taxMode.value === "percent") {
-      return dpp.value * (value / 100);
-    }
-
-    return value;
+    return calculateTax(dpp.value, options.taxMode.value, options.taxValue.value);
   });
 
   /**
@@ -142,12 +81,7 @@ export function usePosCalculation(options: PosCalculationOptions) {
    * Total akhir tagihan.
    */
   const grandTotal = computed(() => {
-    return Math.max(
-      0,
-      dpp.value +
-        taxAmount.value +
-        additionalChargesTotal.value,
-    );
+    return Math.max(0, dpp.value + taxAmount.value + additionalChargesTotal.value);
   });
 
   const summary = computed(() => ({

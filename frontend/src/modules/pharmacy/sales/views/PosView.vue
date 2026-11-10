@@ -1,107 +1,95 @@
 <script setup lang="ts">
 import "../styles/pos.css";
-import { usePosSound } from "../composables/usePosSound";
 
-const { soundEnabled, play: playPosSound, toggle: togglePosSound } = usePosSound();
+import { computed, ref } from "vue";
 
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
-import { usePos } from "../composables/usePos";
-import type { PaymentMethod, ProductSearchResult, PosAdditionalCharge, Sale, SettlementMode, DiscountMode, TaxMode } from "../types/sales";
-
-import productService from "@/modules/pharmacy/master/services/productService";
 import CustomerAutocomplete from "@/modules/pharmacy/master/components/CustomerAutocomplete.vue";
 
-import PosProductSearch from "../components/pos/PosProductSearch.vue";
-import PosCart from "../components/pos/PosCart.vue";
-import PosSummary from "../components/pos/PosSummary.vue";
-import PosDiscountInput from "../components/pos/PosDiscountInput.vue";
-import PosTaxInput from "../components/pos/PosTaxInput.vue";
 import PosAdditionalCharges from "../components/pos/PosAdditionalCharges.vue";
-import PosPayment from "../components/pos/PosPayment.vue";
-import PosTotalPanel from "../components/pos/PosTotalPanel.vue";
+import PosCart from "../components/pos/PosCart.vue";
+import PosDiscountInput from "../components/pos/PosDiscountInput.vue";
+import PosDock from "../components/pos/PosDock.vue";
+import PosHeader from "../components/pos/PosHeader.vue";
 import PosHeldTransactions from "../components/pos/PosHeldTransactions.vue";
-import PosTransactionNotes from "../components/pos/PosTransactionNotes.vue";
+import PosMenuBar from "../components/pos/PosMenuBar.vue";
+import PosPanel from "../components/pos/PosPanel.vue";
+import PosPayment from "../components/pos/PosPayment.vue";
+import PosProductSearch from "../components/pos/PosProductSearch.vue";
 import PosShortcutHelp from "../components/pos/PosShortcutHelp.vue";
+import PosSummary from "../components/pos/PosSummary.vue";
+import PosTaxInput from "../components/pos/PosTaxInput.vue";
+import PosTotalPanel from "../components/pos/PosTotalPanel.vue";
+import PosTransactionNotes from "../components/pos/PosTransactionNotes.vue";
 
-defineOptions({
-  name: "PosView",
+import { usePos } from "../composables/usePos";
+import { usePosAdditionalCharges } from "../composables/usePosAdditionalCharges";
+import { usePosCartHandlers } from "../composables/usePosCartHandlers";
+import { usePosDelight } from "../composables/usePosDelight";
+import { usePosDisplay } from "../composables/usePosDisplay";
+import { usePosDock, type DockEdge } from "../composables/usePosDock";
+import { usePosFeedback } from "../composables/usePosFeedback";
+import { usePosHost } from "../composables/usePosHost";
+import { usePosKeyboard } from "../composables/usePosKeyboard";
+import { usePosLifecycle } from "../composables/usePosLifecycle";
+import { usePosMenuActions } from "../composables/usePosMenuActions";
+import { usePosMenus } from "../composables/usePosMenus";
+import { usePosNavigation } from "../composables/usePosNavigation";
+import { usePosPaymentHandlers } from "../composables/usePosPaymentHandlers";
+import { usePosPaymentInfo } from "../composables/usePosPaymentInfo";
+import { usePosProductSearch } from "../composables/usePosProductSearch";
+import { searchPosProducts } from "../services/posProductSearch";
+import { usePosSections } from "../composables/usePosSections";
+import { usePosSession } from "../composables/usePosSession";
+import { usePosSettingsDialogs } from "../composables/usePosSettingsDialogs";
+import { usePosSound } from "../composables/usePosSound";
+import { usePosTransactionActions } from "../composables/usePosTransactionActions";
+import { usePosTransactionAdjustments } from "../composables/usePosTransactionAdjustments";
+import { usePosShortcutHelp } from "../composables/usePosShortcutHelp";
+import { usePosTransactionState } from "../composables/usePosTransactionState";
+
+defineOptions({ name: "PosView" });
+
+/* INFRASTRUKTUR UI */
+
+const host = usePosHost();
+const { message, errorMessage, clearMessages, showError, showSuccess } = usePosFeedback();
+const { soundEnabled, play: playPosSound, toggle: togglePosSound } = usePosSound();
+const { dock, toggleDock, moveDock, toggleDockVisibility } = usePosDock();
+const { isFullscreen, compactHeader, syncFullscreen, toggleFullscreen, toggleCompact } = usePosDisplay({
+  notifyWarning: (text) => host.notify("warning", text),
 });
+const paymentInfo = usePosPaymentInfo();
 
-/* --------------------------------------------------------------------------
- * TYPES
- * ----------------------------------------------------------------------- */
+const { shortcutHelp, toggleShortcutHelp, closeShortcutHelp, setShortcutHelp } = usePosShortcutHelp();
+const dismissMessage = (): void => {
+  message.value = "";
+};
+const dismissError = (): void => {
+  errorMessage.value = "";
+};
 
-/* --------------------------------------------------------------------------
- * HELPERS
- * ----------------------------------------------------------------------- */
+/* SEKSI HALAMAN & FOKUS */
 
-function toNumber(value: unknown): number {
-  const number = Number(value);
-  return Number.isFinite(number) ? number : 0;
-}
+const {
+  barcodeSection,
+  customerSection,
+  cartSection,
+  discountSection,
+  chargesSection,
+  paymentSection,
+  paymentInput,
+  adjustTab,
+  adjustTabItems,
+  onTabKeydown,
+  focusBarcode,
+  focusCustomer,
+  focusCart,
+  focusPayment,
+  focusPaymentAmount,
+  openAdjustTab,
+} = usePosSections();
 
-function formatCurrency(value: number): string {
-  return new Intl.NumberFormat("id-ID", {
-    style: "currency",
-    currency: "IDR",
-    maximumFractionDigits: 0,
-  }).format(toNumber(value));
-}
-
-function getErrorMessage(error: unknown): string {
-  const err = error as {
-    response?: {
-      data?: {
-        message?: string | string[];
-      };
-    };
-    message?: string;
-  };
-
-  const message = err?.response?.data?.message;
-
-  if (Array.isArray(message)) {
-    return message.join(", ");
-  }
-
-  return message || err?.message || "Terjadi kesalahan.";
-}
-
-/* --------------------------------------------------------------------------
- * PRODUCT SEARCH
- * ----------------------------------------------------------------------- */
-
-async function searchProducts(searchKeyword: string): Promise<ProductSearchResult[]> {
-  const response = await productService.getAll({
-    page: 1,
-    per_page: 20,
-    search: searchKeyword,
-    is_active: 1,
-  });
-
-  if (response.data.error) {
-    const apiMessage = response.data.message;
-
-    throw new Error(Array.isArray(apiMessage) ? apiMessage.join(", ") : apiMessage || "Gagal mengambil data produk.");
-  }
-
-  const products = response.data.data?.items ?? [];
-
-  return products.map((product) => ({
-    id: product.id,
-    sku: product.sku ?? "",
-    barcode: product.barcode ?? null,
-    name: product.name,
-    unit_name: product.unit_name ?? undefined,
-    selling_price: Number(product.selling_price),
-    // available_stock: product.available_stock,
-    is_active: Number(product.is_active) === 1,
-  }));
-}
-
-/* --------------------------------------------------------------------------
- * POS COMPOSABLE
- * ----------------------------------------------------------------------- */
+/* STATE & LOGIKA TRANSAKSI */
 
 const {
   cart,
@@ -124,7 +112,6 @@ const {
   subtotal,
   itemDiscount,
   transactionDiscount,
-  discountTotal,
   dpp,
   taxAmount,
   additionalChargesTotal,
@@ -140,7 +127,6 @@ const {
 
   isDraft,
   isPosted,
-  isCancelled,
   transactionLocked,
   canCreateDraft,
   canPostSale,
@@ -167,7 +153,6 @@ const {
   setPaymentReferenceNumber,
   payExact,
   resetPaymentAmount,
-  //   payExactAmount,
   createDraft,
   postCurrentSale,
   newTransaction,
@@ -177,901 +162,477 @@ const {
   loadHeldTransactions,
   holdCurrentSale,
   resumeHeldTransaction,
-} = usePos({
-  searchProducts,
+  paymentConfirmed,
+  isPaymentValid,
+  dueDateError,
+  setPaymentConfirmed,
+} = usePos({ searchProducts: searchPosProducts });
+
+const { hasUnsavedCart, hasUnsupportedDraftValues, saleStatus, settlementLabel } = usePosTransactionState({
+  cart,
+  isDraft,
+  isPosted,
+  additionalChargesTotal,
+  settlementMode,
 });
 
-/* --------------------------------------------------------------------------
- * LOCAL UI STATE
- * ----------------------------------------------------------------------- */
+/* Sentuhan visual (jam, sapaan, kedip keranjang). Harus setelah usePos karena membaca subtotal. */
+const { clockTime, greeting, cartFlash } = usePosDelight(subtotal);
 
-const message = ref("");
-const errorMessage = ref("");
-const shortcutHelp = ref(false);
+/* SESI, NAVIGASI, DIALOG */
 
-const barcodeSection = ref<HTMLElement | null>(null);
-const customerSection = ref<HTMLElement | null>(null);
-const cartSection = ref<HTMLElement | null>(null);
-const discountSection = ref<HTMLElement | null>(null);
-const chargesSection = ref<HTMLElement | null>(null);
-const paymentSection = ref<HTMLElement | null>(null);
-const paymentInput = ref<HTMLElement | null>(null);
-
-const bankName = ref("");
-const accountNumber = ref("");
-const accountHolder = ref("");
-const qrisImageUrl = ref<string | null>(null);
-const selectedPaymentMethod = computed<PaymentMethod>(() => paymentMethod.value ?? "cash");
-const settlementLabel = computed(() => {
-  switch (settlementMode.value) {
-    case "partial":
-      return "Tempo - Bayar Sebagian";
-    case "receivable":
-      return "Tempo - Seluruhnya Piutang";
-    default:
-      return "Lunas";
-  }
+const { cashierName, cashierTitle, workspaceLabel, rememberOrganization, syncOrganization, signOut } = usePosSession({
+  notifyWarning: (text) => host.notify("warning", text),
 });
 
-/* --------------------------------------------------------------------------
- * MESSAGES
- * ----------------------------------------------------------------------- */
-
-function clearMessages(): void {
-  message.value = "";
-  errorMessage.value = "";
-}
-
-function showError(error: unknown): void {
-  errorMessage.value = getErrorMessage(error);
-  message.value = "";
-}
-
-function showSuccess(text: string): void {
-  message.value = text;
-  errorMessage.value = "";
-}
-
-/* --------------------------------------------------------------------------
- * PRODUCT HANDLERS
- * ----------------------------------------------------------------------- */
-
-let searchTimer: ReturnType<typeof setTimeout> | undefined;
-
-function cancelSearchTimer(): void {
-  if (searchTimer) {
-    clearTimeout(searchTimer);
-    searchTimer = undefined;
-  }
-}
-
-watch(keyword, (value) => {
-  cancelSearchTimer();
-
-  if (!value.trim()) {
-    clearSearch();
-    return;
-  }
-
-  searchTimer = setTimeout(() => {
-    void handleSearch();
-  }, 300);
+const { goToDashboard, openPage, openUrl, handleLogout } = usePosNavigation({
+  hasUnsavedCart: () => hasUnsavedCart.value,
+  signOut,
+  notifyError: (text) => host.notify("error", text),
 });
 
-async function handleSearch(): Promise<void> {
-  if (!keyword.value.trim() || transactionLocked.value) {
-    return;
-  }
+const { openPrinterSettings, openPosSettings, openPaymentSettings } = usePosSettingsDialogs(host);
 
-  try {
-    await searchProduct();
-  } catch (error) {
-    showError(error);
-  }
-}
+/* HANDLER */
 
-function handleAddProduct(product: ProductSearchResult): void {
-  const duplicate = cart.value.some((item) => item.product_id === product.id);
+const { handleAddProduct, handleSearch, handleBarcodeEnter } = usePosProductSearch({
+  keyword,
 
-  try {
-    clearMessages();
-    addProduct(product);
-    void playPosSound(duplicate ? "duplicate" : "success");
-    clearSearch();
-    focusBarcode();
-  } catch (error) {
-    void playPosSound("warning");
-    showError(error);
-  }
-}
+  getCart: () => cart.value,
+  getSearchResults: () => searchResults.value,
+  isTransactionLocked: () => transactionLocked.value,
 
-async function handleBarcodeEnter(): Promise<void> {
-  const barcode = keyword.value.trim();
+  searchProduct,
+  clearSearch,
+  addProduct,
 
-  if (!barcode || transactionLocked.value) {
-    return;
-  }
+  clearMessages,
+  showError,
+  setErrorMessage: (text) => {
+    errorMessage.value = text;
+  },
 
-  try {
-    const products = await searchProducts(barcode);
+  playSound: playPosSound,
+  focusBarcode,
+});
 
-    const product = products.find((item) => item.barcode?.trim().toLowerCase() === barcode.toLowerCase());
+const { handleQuantityChange, handlePriceChange, handleDiscountModeChange, handleDiscountChange, handleItemNoteChange, handleRemoveProduct, handleClearCart } = usePosCartHandlers({
+  getCart: () => cart.value,
 
-    if (!product) {
-      await searchProduct();
-      errorMessage.value = "Barcode tidak ditemukan.";
-      void playPosSound("warning");
-      return;
-    }
+  updateQuantity,
+  updateUnitPrice,
+  updateItemDiscount,
+  updateItemNotes,
+  removeProduct,
+  clearCart,
 
-    handleAddProduct(product);
-  } catch (error) {
-    void playPosSound("error");
-    showError(error);
-  }
-}
+  showError,
+});
 
-function focusBarcode(): void {
-  const input = barcodeSection.value?.querySelector<HTMLInputElement>("input");
+const { handleTransactionDiscountMode, handleTransactionDiscountValue, handleTaxMode, handleTaxValue } = usePosTransactionAdjustments({
+  getTransactionDiscountMode: () => transactionDiscountMode.value,
+  getTransactionDiscountValue: () => transactionDiscountValue.value,
+  getTaxMode: () => taxMode.value,
+  getTaxValue: () => taxValue.value,
 
-  input?.focus();
-  input?.select();
-}
+  setTransactionDiscount,
+  setTax,
+});
 
-/* --------------------------------------------------------------------------
- * CART HANDLERS
- * ----------------------------------------------------------------------- */
+const { addCharge, updateCharge, removeCharge } = usePosAdditionalCharges({
+  addAdditionalCharge,
+  updateAdditionalCharge,
+  removeAdditionalCharge,
+  showError,
+});
 
-function handleQuantityChange(productId: number, value: number): void {
-  try {
-    updateQuantity(productId, Math.max(0, value));
-  } catch (error) {
-    showError(error);
-  }
-}
+const { handleSettlementMode, handlePaymentAmount, handlePaymentMethod, handleDueDate, handleReferenceNumber, handleExactPayment, handleResetPayment, handlePaymentConfirmation } = usePosPaymentHandlers({
+  getSettlementMode: () => settlementMode.value,
 
-function handlePriceChange(productId: number, value: number): void {
-  try {
-    updateUnitPrice(productId, Math.max(0, value));
-  } catch (error) {
-    showError(error);
-  }
-}
+  setSettlementMode,
+  setPaymentAmount,
+  setPaymentMethod,
+  setDueDate,
+  setPaymentReferenceNumber,
+  payExact,
+  resetPaymentAmount,
+  setPaymentConfirmed,
+});
 
-function handleDiscountModeChange(productId: number, mode: DiscountMode): void {
-  const item = cart.value.find((row) => row.product_id === productId);
-  if (!item) return;
+const { handleProcessSale, handleHoldSale, handleResumeSale, handleNewTransaction, handleRefreshHeld, handlePostSale, handleCreateDraft } = usePosTransactionActions({
+  hasUnsupportedDraftValues: () => hasUnsupportedDraftValues.value,
+  isDraft: () => isDraft.value,
+  canPostSale: () => canPostSale.value,
+  isPaymentValid: () => isPaymentValid.value,
+  isPosted: () => isPosted.value,
 
-  try {
-    updateItemDiscount(productId, mode, toNumber(item.discount_value ?? item.discount_amount));
-  } catch (error) {
-    showError(error);
-  }
-}
+  createDraft,
+  postCurrentSale,
+  holdCurrentSale,
+  resumeHeldTransaction,
+  loadHeldTransactions,
+  newTransaction,
 
-function handleDiscountChange(productId: number, value: number): void {
-  const item = cart.value.find((row) => row.product_id === productId);
-  if (!item) return;
+  clearMessages,
+  setErrorMessage: (text) => {
+    errorMessage.value = text;
+  },
+  showSuccess,
+  showError,
 
-  try {
-    updateItemDiscount(productId, item.discount_mode ?? "amount", Math.max(0, value));
-  } catch (error) {
-    showError(error);
-  }
-}
+  playTransactionSound: () => {
+    void playPosSound("transaction");
+  },
 
-function handleItemNoteChange(productId: number, value: string): void {
-  try {
-    updateItemNotes(productId, value);
-  } catch (error) {
-    showError(error);
-  }
-}
-
-function handleRemoveProduct(productId: number): void {
-  try {
-    removeProduct(productId);
-  } catch (error) {
-    showError(error);
-  }
-}
-
-function handleClearCart(): void {
-  try {
-    clearCart();
-  } catch (error) {
-    showError(error);
-  }
-}
-
-/* --------------------------------------------------------------------------
- * CUSTOMER
- * ----------------------------------------------------------------------- */
+  focusBarcode,
+});
 
 function handleCustomerChange(customerId: number | null): void {
   setCustomer(customerId);
 }
 
-/* --------------------------------------------------------------------------
- * TRANSACTION DISCOUNT AND TAX
- * ----------------------------------------------------------------------- */
+/* KEYBOARD, MENU, DOCK */
 
-function handleTransactionDiscountMode(mode: DiscountMode): void {
-  setTransactionDiscount(mode, transactionDiscountValue.value);
-}
+const { handleKeyboard, handleDenominationShortcut } = usePosKeyboard({
+  hostIsOpen: () => host.isOpen(),
 
-function handleTransactionDiscountValue(value: number): void {
-  setTransactionDiscount(transactionDiscountMode.value, Math.max(0, value));
-}
+  isProcessing: () => processing.value,
+  isPosted: () => isPosted.value,
+  getSettlementMode: () => settlementMode.value,
+  getPaymentMethod: () => paymentMethod.value,
 
-function handleTaxMode(mode: TaxMode): void {
-  setTax(mode, taxValue.value);
-}
+  setShortcutHelp,
 
-function handleTaxValue(value: number): void {
-  setTax(taxMode.value, Math.max(0, value));
-}
+  focusBarcode,
+  focusCustomer,
+  focusCart,
+  focusPayment,
+  focusPaymentAmount,
+  openAdjustTab,
 
-/* --------------------------------------------------------------------------
- * ADDITIONAL CHARGES
- * ----------------------------------------------------------------------- */
+  handleResetPayment,
+  handleExactPayment,
+  handlePaymentAmount,
 
-let chargeSequence = 0;
-
-function addCharge(): void {
-  chargeSequence++;
-
-  try {
-    addAdditionalCharge({
-      id: `charge-${chargeSequence}`,
-      type: "other",
-      label: "Biaya lainnya",
-      description: "",
-      amount: 0,
-    });
-  } catch (error) {
-    showError(error);
-  }
-}
-
-function updateCharge(id: string, field: "type" | "description" | "amount", value: string | number): void {
-  try {
-    switch (field) {
-      case "amount":
-        updateAdditionalCharge(id, { amount: Math.max(0, Number(value) || 0) });
-        break;
-      case "description":
-        updateAdditionalCharge(id, { description: String(value) });
-        break;
-      case "type":
-        updateAdditionalCharge(id, { type: value as PosAdditionalCharge["type"] });
-        break;
-    }
-  } catch (error) {
-    showError(error);
-  }
-}
-
-function removeCharge(id: string): void {
-  try {
-    removeAdditionalCharge(id);
-  } catch (error) {
-    showError(error);
-  }
-}
-
-/* --------------------------------------------------------------------------
- * PAYMENT
- * ----------------------------------------------------------------------- */
-
-function handleSettlementMode(mode: SettlementMode): void {
-  setSettlementMode(mode);
-}
-
-function handlePaymentAmount(value: number): void {
-  setPaymentAmount(Math.max(0, value));
-}
-
-function handlePaymentMethod(method: PaymentMethod): void {
-  setPaymentMethod(method);
-}
-
-function handleDueDate(value: string): void {
-  setDueDate(value);
-}
-
-function handleReferenceNumber(value: string): void {
-  setPaymentReferenceNumber(value);
-}
-
-function handleExactPayment(): void {
-  if (settlementMode.value !== "paid") return;
-
-  payExact();
-}
-
-/* function handleExactPayment(): void {
-  if (settlementMode.value !== "paid") return;
-
-  payExactAmount();
-} */
-
-function handleResetPayment(): void {
-  resetPaymentAmount();
-}
-
-/* --------------------------------------------------------------------------
- * TRANSACTION ACTIONS
- * ----------------------------------------------------------------------- */
-
-/**
- * Diskon transaksi dan pajak sudah dipetakan ke payload backend.
- * Biaya tambahan dan settlement tempo belum didukung oleh API lama.
- */
-const hasUnsupportedDraftValues = computed(() => {
-  return additionalChargesTotal.value > 0 || settlementMode.value !== "paid";
+  handleHoldSale,
+  handleNewTransaction,
+  handleProcessSale,
 });
 
-async function handleCreateDraft(): Promise<void> {
-  clearMessages();
+const { runAction } = usePosMenuActions({
+  handleNewTransaction,
+  handleHoldSale,
+  handleProcessSale,
+  handleRefreshHeld,
 
-  if (hasUnsupportedDraftValues.value) {
-    errorMessage.value = "Biaya tambahan dan transaksi tempo belum didukung oleh payload backend penjualan saat ini.";
-    return;
-  }
+  focusBarcode,
+  focusCustomer,
+  focusCart,
+  openAdjustTab,
+  focusPaymentAmount,
 
-  try {
-    await createDraft();
-    showSuccess("Draft penjualan berhasil dibuat.");
-  } catch (error) {
-    showError(error);
-  }
-}
+  handleExactPayment,
+  handleResetPayment,
 
-async function handlePostSale(): Promise<void> {
-  clearMessages();
+  toggleSound: togglePosSound,
+  toggleDock,
+  toggleDockVisibility,
+  moveDock,
 
-  if (hasUnsupportedDraftValues.value) {
-    errorMessage.value = "Biaya tambahan atau transaksi tempo belum dapat diposting karena backend belum menyimpan seluruh komponennya.";
-    return;
-  }
+  toggleShortcutHelp,
+  showAbout: () => showSuccess("ACN Pharmacy · Point of Sale"),
 
-  if (!canPostSale.value) {
-    errorMessage.value = "Transaksi belum dapat diposting.";
-    return;
-  }
+  openPrinterSettings,
+  openPosSettings,
+  openPaymentSettings,
 
-  try {
-    await postCurrentSale();
-    void playPosSound("transaction");
-    showSuccess("Penjualan berhasil diposting.");
-    await loadHeldTransactions();
-    focusBarcode();
-  } catch (error) {
-    showError(error);
-  }
-}
+  toggleFullscreen,
+  toggleCompact,
+  handleLogout,
 
-async function handleHoldSale(): Promise<void> {
-  clearMessages();
-
-  try {
-    await holdCurrentSale();
-    await loadHeldTransactions();
-    showSuccess("Transaksi berhasil ditahan.");
-  } catch (error) {
-    showError(error);
-  }
-}
-
-async function handleResumeSale(sale: Sale): Promise<void> {
-  clearMessages();
-
-  try {
-    await resumeHeldTransaction(sale.id);
-    showSuccess(`Transaksi ${sale.sale_number} berhasil dilanjutkan.`);
-  } catch (error) {
-    showError(error);
-  }
-}
-
-async function handleNewTransaction(): Promise<void> {
-  if (!isPosted.value) return;
-
-  try {
-    newTransaction();
-
-    clearMessages();
-    focusBarcode();
-  } catch (error) {
-    showError(error);
-  }
-}
-
-async function handleRefreshHeld(): Promise<void> {
-  try {
-    await loadHeldTransactions();
-  } catch (error) {
-    showError(error);
-  }
-}
-
-/* --------------------------------------------------------------------------
- * KEYBOARD SHORTCUTS
- * ----------------------------------------------------------------------- */
-
-function isTypingTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false;
-
-  return target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName);
-}
-
-function focusSection(section: HTMLElement | null): void {
-  const input = section?.querySelector<HTMLElement>("input:not([disabled]), button:not([disabled]), select:not([disabled])");
-
-  input?.focus();
-}
-
-function handleKeyboard(event: KeyboardEvent): void {
-  if (event.ctrlKey || event.altKey || event.metaKey || isTypingTarget(event.target)) {
-    return;
-  }
-
-  switch (event.key) {
-    case "Escape":
-      shortcutHelp.value = false;
-      break;
-
-    case "F1":
-      event.preventDefault();
-      focusBarcode();
-      break;
-
-    case "F2":
-      event.preventDefault();
-      focusSection(customerSection.value);
-      break;
-
-    case "F3":
-      event.preventDefault();
-      focusSection(cartSection.value);
-      break;
-
-    case "F4":
-      event.preventDefault();
-      focusSection(discountSection.value);
-      break;
-
-    case "F5":
-      event.preventDefault();
-      focusSection(chargesSection.value);
-      break;
-
-    case "F6":
-      event.preventDefault();
-      focusSection(paymentSection.value);
-      break;
-
-    case "F7":
-      event.preventDefault();
-      focusSection(paymentSection.value);
-      break;
-
-    case "F8":
-      event.preventDefault();
-      focusSection(paymentInput.value);
-      break;
-
-    case "F9":
-      event.preventDefault();
-      handleExactPayment();
-      break;
-
-    case "F10":
-      event.preventDefault();
-
-      if (isDraft.value) {
-        void handleHoldSale();
-      }
-
-      break;
-
-    case "F11":
-      event.preventDefault();
-      void handleNewTransaction();
-      break;
-
-    case "F12":
-      event.preventDefault();
-
-      if (isDraft.value) {
-        void handlePostSale();
-      } else if (!isPosted.value) {
-        void handleCreateDraft();
-      }
-
-      break;
-  }
-}
-
-/* --------------------------------------------------------------------------
- * LIFECYCLE
- * ----------------------------------------------------------------------- */
-
-onMounted(async () => {
-  window.addEventListener("keydown", handleKeyboard);
-
-  try {
-    await loadHeldTransactions();
-  } catch (error) {
-    showError(error);
-  }
-
-  focusBarcode();
+  openPage,
+  openUrl,
 });
 
-onBeforeUnmount(() => {
-  cancelSearchTimer();
-  window.removeEventListener("keydown", handleKeyboard);
+const { menus, dockItems, loadMenu, loadPermission } = usePosMenus({
+  dock,
+  isSoundEnabled: () => soundEnabled.value,
+  isFullscreen: () => isFullscreen.value,
+  isCompact: () => compactHeader.value,
+  cashierName: () => cashierName.value,
+
+  settlementMode: () => settlementMode.value,
+  isDraft: () => isDraft.value,
+  isPosted: () => isPosted.value,
+  isProcessing: () => processing.value,
+});
+
+function onDockMove(payload: { edge: DockEdge; offset: number }): void {
+  moveDock(payload.edge, payload.offset);
+}
+
+// Setelah satu aksi dipilih, toolbar terlipat lagi agar tidak menghalangi.
+function onDockAction(id: string): void {
+  runAction(id);
+  dock.open = false;
+}
+
+/* SIKLUS HIDUP */
+
+usePosLifecycle({
+  handleKeyboard,
+  handleDenominationShortcut,
+
+  loadHeldTransactions,
+  showError,
+  focusBarcode,
+
+  loadMenu,
+  loadPermission,
+
+  rememberOrganization,
+  syncOrganization,
+  syncFullscreen,
+
+  hasUnsavedCart: () => hasUnsavedCart.value,
 });
 </script>
 
 <template>
-  <div class="pos-page pos-modern">
-    <!-- TOP BAR -->
-    <header class="pos-topbar">
-      <div class="pos-brand">
-        <div class="pos-brand-icon">
-          <i class="ti ti-heartbeat"></i>
+  <div class="pos-page">
+    <div class="pos-page">
+      <PosMenuBar :menus="menus" :clock="clockTime" :greeting="greeting" :cashier="cashierName" :workspace="workspaceLabel" :user-title="cashierTitle" :fullscreen="isFullscreen" :compact="compactHeader" @action="runAction" />
+
+      <!-- HEADER -->
+      <PosHeader
+        v-if="!compactHeader"
+        :sale-number="currentSale?.sale_number"
+        :status="saleStatus"
+        :processing="processing"
+        :loading-held="loadingHeldTransactions"
+        :can-hold="!isPosted"
+        :can-new="isPosted"
+        :sound-enabled="soundEnabled"
+        @back="goToDashboard"
+        @new-transaction="handleNewTransaction"
+        @hold-transaction="handleHoldSale"
+        @refresh="handleRefreshHeld"
+        @toggle-sound="togglePosSound"
+        @toggle-shortcuts="shortcutHelp = !shortcutHelp"
+      />
+
+      <!-- BANTUAN SHORTCUT & NOTIFIKASI (melayang, tidak menggeser layout) -->
+      <PosShortcutHelp :visible="shortcutHelp" @close="shortcutHelp = false" />
+
+      <div v-if="message || errorMessage" class="pos-toasts">
+        <div v-if="message" class="alert alert-success" role="status">
+          <i class="ti ti-circle-check fs-5"></i>
+          <span>{{ message }}</span>
+          <button type="button" class="btn btn-icon btn-sm btn-soft-success" aria-label="Tutup pesan" @click="message = ''">
+            <i class="ti ti-x"></i>
+          </button>
         </div>
 
-        <div class="pos-brand-text">
-          <strong>ACN <span>Pharmacy</span></strong>
-          <small>Point of Sale</small>
+        <div v-if="errorMessage" class="alert alert-danger" role="alert">
+          <i class="ti ti-alert-circle fs-5"></i>
+          <span>{{ errorMessage }}</span>
+          <button type="button" class="btn btn-icon btn-sm btn-soft-danger" aria-label="Tutup pesan" @click="errorMessage = ''">
+            <i class="ti ti-x"></i>
+          </button>
         </div>
       </div>
 
-      <div class="pos-topbar-center">
-        <div class="pos-terminal-status">
-          <span class="pos-status-dot"></span>
-          Terminal Kasir Aktif
-        </div>
-
-        <div class="pos-transaction-number">
-          <span>TRANSAKSI</span>
-          <strong>{{ currentSale?.sale_number || "Transaksi Baru" }}</strong>
-        </div>
-      </div>
-
-      <div class="pos-topbar-actions">
-        <button type="button" class="pos-icon-action" title="Bantuan shortcut" @click="shortcutHelp = !shortcutHelp">
-          <i class="ti ti-keyboard"></i>
-        </button>
-
-        <button type="button" class="pos-icon-action" title="Muat ulang transaksi tertahan" :disabled="loadingHeldTransactions" @click="handleRefreshHeld">
-          <i class="ti ti-refresh"></i>
-        </button>
-
-        <button type="button" class="pos-new-transaction" :disabled="processing" @click="handleNewTransaction">
-          <i class="ti ti-plus"></i>
-          <span>Transaksi Baru</span>
-        </button>
-
-        <button type="button" class="pos-sound-toggle" :class="{ 'is-muted': !soundEnabled }" :aria-pressed="soundEnabled" :title="soundEnabled ? 'Nonaktifkan suara' : 'Aktifkan suara'" @click="togglePosSound">
-          <span aria-hidden="true">
-            {{ soundEnabled ? "🔊" : "🔇" }}
-          </span>
-          <span>{{ soundEnabled ? "Suara aktif" : "Suara mati" }}</span>
-        </button>
-      </div>
-    </header>
-
-    <!-- SHORTCUT HELP -->
-    <PosShortcutHelp :visible="shortcutHelp" @close="shortcutHelp = false" />
-
-    <!-- NOTIFICATIONS -->
-    <div v-if="message" class="pos-alert pos-alert-success" role="status">
-      <i class="ti ti-circle-check"></i>
-      <span>{{ message }}</span>
-      <button type="button" @click="message = ''">
-        <i class="ti ti-x"></i>
-      </button>
-    </div>
-
-    <div v-if="errorMessage" class="pos-alert pos-alert-danger" role="alert">
-      <i class="ti ti-alert-circle"></i>
-      <span>{{ errorMessage }}</span>
-      <button type="button" @click="errorMessage = ''">
-        <i class="ti ti-x"></i>
-      </button>
-    </div>
-
-    <!-- POSTED STATE -->
-    <div v-if="isPosted" class="pos-completed-banner">
-      <div class="pos-completed-icon">
-        <i class="ti ti-check"></i>
-      </div>
-
-      <div class="pos-completed-content">
-        <strong>Transaksi berhasil diselesaikan</strong>
-        <span>{{ currentSale?.sale_number }}</span>
-      </div>
-
-      <button type="button" class="pos-button-primary" @click="handleNewTransaction">
-        <i class="ti ti-plus"></i>
-        Transaksi Baru
-      </button>
-    </div>
-
-    <!-- MAIN WORKSPACE -->
-    <main class="pos-workspace">
-      <!-- LEFT: PRODUCT & CART -->
-      <section class="pos-workspace-main">
-        <!-- PRODUCT SEARCH -->
-        <section ref="barcodeSection" class="pos-product-panel">
-          <div class="pos-section-heading">
-            <div class="pos-heading-icon">
-              <i class="ti ti-scan"></i>
-            </div>
+      <main class="pos-main">
+        <!-- KIRI: INPUT & KERANJANG -->
+        <section class="pos-left">
+          <div v-if="isPosted" class="card pos-posted">
+            <i class="ti ti-circle-check text-success"></i>
 
             <div>
-              <h5>Tambah Produk</h5>
-              <p>Scan barcode atau cari produk berdasarkan nama dan SKU.</p>
+              <strong>Transaksi berhasil diselesaikan</strong>
+              <small>{{ currentSale?.sale_number }}</small>
             </div>
 
-            <div class="pos-heading-shortcut">
-              <kbd>F1</kbd>
-            </div>
+            <button type="button" class="btn btn-primary btn-sm" @click="handleNewTransaction">
+              <i class="ti ti-plus"></i>
+              Transaksi baru
+            </button>
           </div>
 
-          <PosProductSearch v-model:keyword="keyword" :results="searchResults" :loading="loadingSearch" :disabled="transactionLocked || processing" @search="handleSearch" @enter="handleBarcodeEnter" @select="handleAddProduct" />
-        </section>
-
-        <!-- CART -->
-        <section ref="cartSection" class="pos-cart-panel">
-          <div class="pos-section-heading pos-cart-heading">
-            <div class="pos-heading-icon pos-heading-icon-purple">
-              <i class="ti ti-shopping-bag"></i>
-            </div>
-
-            <div>
-              <h5>Keranjang Belanja</h5>
-              <p>{{ cart.length }} jenis produk dalam transaksi</p>
-            </div>
-
-            <div class="pos-cart-heading-right">
-              <span class="pos-cart-count"> {{ cart.length }} ITEM </span>
-
-              <kbd>F3</kbd>
-            </div>
-          </div>
-
-          <div class="pos-cart-content">
-            <PosCart
-              :items="cart"
-              :subtotal="subtotal"
+          <div class="pos-entry">
+            <PosProductSearch
+              ref="barcodeSection"
+              v-model:keyword="keyword"
+              :results="searchResults"
+              :loading="loadingSearch"
               :disabled="transactionLocked || processing"
-              @quantity-change="handleQuantityChange"
-              @price-change="handlePriceChange"
-              @discount-mode-change="handleDiscountModeChange"
-              @discount-change="handleDiscountChange"
-              @note-change="handleItemNoteChange"
-              @remove="handleRemoveProduct"
-              @clear="handleClearCart"
+              @search="handleSearch"
+              @enter="handleBarcodeEnter"
+              @select="handleAddProduct"
             />
-          </div>
 
-          <div class="pos-cart-footer">
-            <span>{{ cart.length }} jenis produk</span>
-            <strong>{{ formatCurrency(subtotal) }}</strong>
-          </div>
-        </section>
+            <div ref="customerSection" class="card pos-customer">
+              <label class="pos-field-label">
+                <i class="ti ti-user"></i>
+                Pelanggan
+                <kbd>F2</kbd>
+              </label>
 
-        <!-- HELD TRANSACTIONS -->
-        <details class="pos-held-drawer">
-          <summary>
-            <span>
-              <i class="ti ti-player-pause"></i>
-              Transaksi Ditahan
-              <small>{{ heldTransactions.length }}</small>
-            </span>
-
-            <i class="ti ti-chevron-down"></i>
-          </summary>
-
-          <div class="pos-held-content">
-            <PosHeldTransactions :transactions="heldTransactions" :loading="loadingHeldTransactions" :disabled="processing" @refresh="handleRefreshHeld" @resume="handleResumeSale" />
-          </div>
-        </details>
-      </section>
-
-      <!-- RIGHT: CHECKOUT -->
-      <aside class="pos-checkout-panel">
-        <!-- CUSTOMER -->
-        <section ref="customerSection" class="pos-checkout-section">
-          <div class="pos-compact-heading">
-            <div class="pos-heading-icon pos-heading-icon-blue">
-              <i class="ti ti-user"></i>
+              <CustomerAutocomplete :model-value="selectedCustomerId" :disabled="transactionLocked || processing" @update:model-value="handleCustomerChange" />
             </div>
-
-            <div>
-              <h5>Pelanggan</h5>
-              <small>Informasi pembeli</small>
-            </div>
-
-            <kbd>F2</kbd>
           </div>
 
-          <CustomerAutocomplete :model-value="selectedCustomerId" :disabled="transactionLocked || processing" @update:model-value="handleCustomerChange" />
-        </section>
-
-        <!-- DISCOUNT -->
-        <section ref="discountSection" class="pos-checkout-section">
-          <div class="pos-compact-heading">
-            <div class="pos-heading-icon pos-heading-icon-orange">
-              <i class="ti ti-discount-2"></i>
-            </div>
-
-            <div>
-              <h5>Diskon Transaksi</h5>
-              <small>Potongan keseluruhan</small>
-            </div>
-
-            <kbd>F4</kbd>
-          </div>
-
-          <PosDiscountInput
-            :mode="transactionDiscountMode"
-            :value="transactionDiscountValue"
-            :base-amount="Math.max(0, subtotal - itemDiscount)"
+          <PosCart
+            ref="cartSection"
+            class="pos-cart"
+            :class="{ 'is-flash': cartFlash }"
+            :items="cart"
+            :subtotal="subtotal"
             :disabled="transactionLocked || processing"
-            @update:mode="handleTransactionDiscountMode"
-            @update:value="handleTransactionDiscountValue"
+            shortcut="F3"
+            @quantity-change="handleQuantityChange"
+            @price-change="handlePriceChange"
+            @discount-mode-change="handleDiscountModeChange"
+            @discount-change="handleDiscountChange"
+            @note-change="handleItemNoteChange"
+            @remove="handleRemoveProduct"
+            @clear="handleClearCart"
           />
         </section>
 
-        <!-- SUMMARY -->
-        <section class="pos-summary-panel">
-          <div class="pos-compact-heading">
-            <div class="pos-heading-icon pos-heading-icon-green">
-              <i class="ti ti-receipt"></i>
+        <!-- TENGAH: PENYESUAIAN & RINGKASAN -->
+        <section class="pos-middle">
+          <!-- PENYESUAIAN TRANSAKSI (tab agar hemat ruang) -->
+          <section class="card pos-adjust">
+            <div class="pos-tabs" role="tablist" aria-label="Penyesuaian transaksi">
+              <button
+                v-for="(tab, index) in adjustTabItems"
+                :id="`pos-tab-${tab.id}`"
+                :key="tab.id"
+                type="button"
+                class="pos-tab"
+                :class="{ 'is-active': adjustTab === tab.id }"
+                role="tab"
+                :aria-selected="adjustTab === tab.id"
+                :aria-controls="`pos-tabpanel-${tab.id}`"
+                :aria-label="tab.fullLabel"
+                :title="tab.fullLabel"
+                :tabindex="adjustTab === tab.id ? 0 : -1"
+                @click="adjustTab = tab.id"
+                @keydown="onTabKeydown($event, index)"
+              >
+                <i :class="tab.icon"></i>
+                <span class="pos-tab-label">{{ tab.label }}</span>
+                <span v-if="tab.id === 'charges' && additionalCharges.length" class="pos-tab-badge">{{ additionalCharges.length }}</span>
+                <span v-else-if="tab.id === 'notes' && notes" class="pos-tab-badge">1</span>
+                <span v-else-if="tab.id === 'held' && heldTransactions.length" class="pos-tab-badge">{{ heldTransactions.length }}</span>
+                <kbd v-if="tab.shortcut">{{ tab.shortcut }}</kbd>
+              </button>
             </div>
 
-            <div>
-              <h5>Ringkasan Belanja</h5>
-              <small>Rincian perhitungan transaksi</small>
+            <div class="pos-adjust-body">
+              <div v-show="adjustTab === 'discount'" id="pos-tabpanel-discount" ref="discountSection" role="tabpanel" aria-labelledby="pos-tab-discount">
+                <PosDiscountInput
+                  :mode="transactionDiscountMode"
+                  :value="transactionDiscountValue"
+                  :base-amount="Math.max(0, subtotal - itemDiscount)"
+                  :disabled="transactionLocked || processing"
+                  @update:mode="handleTransactionDiscountMode"
+                  @update:value="handleTransactionDiscountValue"
+                />
+              </div>
+
+              <div v-show="adjustTab === 'charges'" id="pos-tabpanel-charges" ref="chargesSection" role="tabpanel" aria-labelledby="pos-tab-charges">
+                <PosAdditionalCharges :charges="additionalCharges" :disabled="transactionLocked || processing" @add="addCharge" @update="updateCharge" @remove="removeCharge" />
+              </div>
+
+              <div v-show="adjustTab === 'notes'" id="pos-tabpanel-notes" class="h-100" role="tabpanel" aria-labelledby="pos-tab-notes">
+                <PosTransactionNotes v-model="notes" :disabled="transactionLocked || processing" />
+              </div>
+
+              <div v-show="adjustTab === 'held'" id="pos-tabpanel-held" role="tabpanel" aria-labelledby="pos-tab-held">
+                <PosHeldTransactions :transactions="heldTransactions" :loading="loadingHeldTransactions" :disabled="processing" @refresh="handleRefreshHeld" @resume="handleResumeSale" />
+              </div>
             </div>
-          </div>
+          </section>
 
-          <PosSummary :subtotal="subtotal" :item-discount="itemDiscount" :transaction-discount="transactionDiscount" :dpp="dpp" :tax="taxAmount" :additional-charges="additionalChargesTotal" :total="grandTotal" />
+          <PosPanel title="Ringkasan" icon="ti ti-receipt" tone="success">
+            <PosSummary :subtotal="subtotal" :item-discount="itemDiscount" :transaction-discount="transactionDiscount" :dpp="dpp" :tax="taxAmount" :additional-charges="additionalChargesTotal" :total="grandTotal" :show-total="false" />
 
-          <div class="pos-tax-row">
-            <div class="pos-tax-label">
-              <i class="ti ti-percentage"></i>
-              <span>Pajak</span>
+            <div class="pos-tax-row">
+              <label><i class="ti ti-percentage"></i>Atur pajak</label>
+
+              <PosTaxInput :mode="taxMode" :value="taxValue" :base-amount="dpp" :disabled="transactionLocked || processing" :show-preview="false" @update:mode="handleTaxMode" @update:value="handleTaxValue" />
             </div>
-
-            <PosTaxInput :mode="taxMode" :value="taxValue" :base-amount="dpp" :disabled="transactionLocked || processing" @update:mode="handleTaxMode" @update:value="handleTaxValue" />
-          </div>
+          </PosPanel>
         </section>
 
-        <!-- ADDITIONAL CHARGES -->
-        <section ref="chargesSection" class="pos-checkout-section">
-          <div class="pos-compact-heading">
-            <div class="pos-heading-icon pos-heading-icon-orange">
-              <i class="ti ti-package"></i>
-            </div>
-
-            <div>
-              <h5>Biaya Tambahan</h5>
-              <small>Ongkir, kemasan, dan jasa</small>
-            </div>
-
-            <kbd>F5</kbd>
+        <!-- KANAN: PEMBAYARAN & AKSI -->
+        <aside class="pos-right">
+          <div class="pos-right-scroll">
+            <PosPanel ref="paymentSection" title="Pembayaran" icon="ti ti-wallet" tone="primary" shortcut="F6">
+              <div ref="paymentInput">
+                <PosPayment
+                  :mode="settlementMode"
+                  :payment-method="paymentMethod"
+                  :payment-amount="paymentAmount"
+                  :total="grandTotal"
+                  :due-date="dueDate"
+                  :due-date-error="dueDateError"
+                  :reference-number="paymentReferenceNumber"
+                  :payment-confirmed="paymentConfirmed"
+                  :disabled="processing || isPosted"
+                  :bank-name="paymentInfo.bankName"
+                  :account-number="paymentInfo.accountNumber"
+                  :account-holder="paymentInfo.accountHolder"
+                  :qris-image-url="paymentInfo.qrisImageUrl"
+                  @update:mode="handleSettlementMode"
+                  @update:payment-method="handlePaymentMethod"
+                  @update:payment-amount="handlePaymentAmount"
+                  @update:due-date="handleDueDate"
+                  @update:reference-number="handleReferenceNumber"
+                  @update:payment-confirmed="handlePaymentConfirmation"
+                  @exact="handleExactPayment"
+                  @reset="handleResetPayment"
+                />
+              </div>
+            </PosPanel>
           </div>
 
-          <PosAdditionalCharges :charges="additionalCharges" :disabled="transactionLocked || processing" @add="addCharge" @update="updateCharge" @remove="removeCharge" />
-        </section>
+          <!-- TOTAL & AKSI: selalu terlihat di bawah -->
+          <section class="card pos-final">
+            <PosTotalPanel :total="grandTotal" :paid="appliedAmount" :change="changeAmount" :remaining="remainingAmount" :settlement-label="settlementLabel" />
 
-        <!-- PAYMENT -->
-        <section ref="paymentSection" class="pos-payment-panel">
-          <div class="pos-payment-heading">
-            <div>
-              <span class="pos-payment-eyebrow">CHECKOUT</span>
-              <h5>Pembayaran</h5>
+            <div class="pos-final-actions">
+              <button v-if="!isDraft && !isPosted" type="button" class="btn btn-primary btn-lg" :disabled="!canCreateDraft || processing" @click="handleCreateDraft">
+                <span v-if="processing" class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+                <i v-else class="ti ti-device-floppy"></i>
+                Buat draft penjualan
+                <kbd>F12</kbd>
+              </button>
+
+              <button v-else-if="isDraft" type="button" class="btn btn-success btn-lg" :disabled="!canPostSale || !isPaymentValid || processing" @click="handlePostSale">
+                <span v-if="processing" class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+                <i v-else class="ti ti-check"></i>
+                Posting penjualan
+                <kbd>F12</kbd>
+              </button>
+
+              <button v-else type="button" class="btn btn-primary btn-lg" :disabled="processing" @click="handleNewTransaction">
+                <i class="ti ti-plus"></i>
+                Transaksi baru
+                <kbd>F11</kbd>
+              </button>
+
+              <small v-if="isDraft">
+                <i class="ti ti-info-circle"></i>
+                Draft tersimpan. Periksa transaksi sebelum posting.
+              </small>
             </div>
-
-            <div class="pos-payment-icon">
-              <i class="ti ti-wallet"></i>
-            </div>
-          </div>
-
-          <div ref="paymentInput">
-            <PosPayment
-              :mode="settlementMode"
-              :payment-method="selectedPaymentMethod"
-              :payment-amount="paymentAmount"
-              :total="grandTotal"
-              :due-date="dueDate"
-              :reference-number="paymentReferenceNumber"
-              :disabled="transactionLocked || processing"
-              :bank-name="bankName"
-              :account-number="accountNumber"
-              :account-holder="accountHolder"
-              :qris-image-url="qrisImageUrl"
-              @update:mode="handleSettlementMode"
-              @update:payment-method="handlePaymentMethod"
-              @update:payment-amount="handlePaymentAmount"
-              @update:due-date="handleDueDate"
-              @update:reference-number="handleReferenceNumber"
-              @submit="isDraft ? handlePostSale() : handleCreateDraft()"
-            />
-          </div>
-
-          <PosTotalPanel :total="grandTotal" :paid="appliedAmount" :change="changeAmount" :remaining="remainingAmount" :settlement-label="settlementLabel" />
-        </section>
-
-        <!-- TRANSACTION NOTES -->
-        <section class="pos-notes-panel">
-          <PosTransactionNotes v-model="notes" :disabled="transactionLocked || processing" />
-        </section>
-
-        <!-- FINAL TOTAL & ACTION -->
-        <section class="pos-final-panel">
-          <div class="pos-final-total">
-            <div>
-              <span>TOTAL TAGIHAN</span>
-              <small>{{ cart.length }} jenis produk</small>
-            </div>
-
-            <strong>{{ formatCurrency(grandTotal) }}</strong>
-          </div>
-
-          <button v-if="!isDraft && !isPosted" type="button" class="pos-final-button pos-final-button-primary" :disabled="!canCreateDraft || processing" @click="handleCreateDraft">
-            <span v-if="processing" class="pos-spinner"></span>
-            <i v-else class="ti ti-device-floppy"></i>
-
-            <span>Buat Draft Penjualan</span>
-            <kbd>F12</kbd>
-          </button>
-
-          <button v-else-if="isDraft" type="button" class="pos-final-button pos-final-button-success" :disabled="!canPostSale || processing" @click="handlePostSale">
-            <span v-if="processing" class="pos-spinner"></span>
-            <i v-else class="ti ti-check"></i>
-
-            <span>Posting Penjualan</span>
-            <kbd>F12</kbd>
-          </button>
-
-          <button v-else-if="isPosted" type="button" class="pos-final-button pos-final-button-primary" :disabled="processing" @click="handleNewTransaction">
-            <i class="ti ti-plus"></i>
-            <span>Transaksi Baru</span>
-            <kbd>F11</kbd>
-          </button>
-
-          <div v-if="isDraft" class="pos-draft-information">
-            <i class="ti ti-info-circle"></i>
-            Draft tersimpan. Periksa transaksi sebelum posting.
-          </div>
-        </section>
-      </aside>
-    </main>
-
-    <!-- BOTTOM STATUS BAR -->
-    <footer class="pos-bottom-bar">
-      <div class="pos-bottom-left">
-        <span class="pos-status-dot"></span>
-        <span>ACN Pharmacy POS</span>
-        <span class="pos-bottom-divider"></span>
-        <span>Ready for transaction</span>
-      </div>
-
-      <div class="pos-bottom-shortcuts">
-        <span><kbd>F1</kbd> Produk</span>
-        <span><kbd>F2</kbd> Pelanggan</span>
-        <span><kbd>F10</kbd> Tahan</span>
-        <span><kbd>F12</kbd> Proses</span>
-      </div>
-    </footer>
+          </section>
+        </aside>
+      </main>
+      <PosDock v-if="dock.visible" :open="dock.open" :edge="dock.edge" :offset="dock.offset" :items="dockItems" @action="onDockAction" @toggle="toggleDock" @move="onDockMove" />
+    </div>
   </div>
 </template>

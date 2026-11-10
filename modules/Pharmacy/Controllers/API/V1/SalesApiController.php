@@ -160,7 +160,7 @@ class SalesApiController extends ApiController
             );
         }
 
-        $data = $this->request->getJSON(true) ?? [];
+        $data = $this->request->getJSON(true);
 
         if (!is_array($data)) {
             return $this->errorResponse(
@@ -173,17 +173,20 @@ class SalesApiController extends ApiController
             $this->salesService->postSale(
                 $id,
                 [
-                    'amount'           => $data['amount'] ?? 0,
-                    'payment_method'   => $data['payment_method'] ?? null,
-                    'reference_number' => $data['reference_number'] ?? null,
+                    'settlement_mode'   => $data['settlement_mode'] ?? 'paid',
+                    'amount'            => $data['applied_amount'] ?? $data['amount'] ?? 0,
+                    'amount_received'   => $data['amount_received'] ?? 0,
+                    'change_amount'     => $data['change_amount'] ?? 0,
+                    'payment_method'    => $data['payment_method'] ?? null,
+                    'reference_number'  => $data['reference_number'] ?? null,
+                    'due_date'          => $data['due_date'] ?? null,
+                    'payment_confirmed' => $data['payment_confirmed'] ?? false,
                 ],
                 $userId
             );
 
-            $sale = $this->salesService->getSaleDetail($id);
-
             return $this->successResponse(
-                $sale,
+                $this->salesService->getSaleDetail($id),
                 'Penjualan berhasil diposting.'
             );
         } catch (InvalidArgumentException | RuntimeException $e) {
@@ -192,7 +195,10 @@ class SalesApiController extends ApiController
                 422
             );
         } catch (Throwable $e) {
-            log_message('error', '[SalesApiController::post] ' . $e->getMessage());
+            log_message(
+                'error',
+                '[SalesApiController::post] ' . $e->getMessage()
+            );
 
             return $this->errorResponse(
                 'Terjadi kesalahan saat memposting penjualan.',
@@ -312,7 +318,7 @@ class SalesApiController extends ApiController
 
             return $this->successResponse(
                 $sale,
-                'Draft penjualan berhasil dibatalkan.'
+                'Transaksi penjualan berhasil dibatalkan.'
             );
         } catch (InvalidArgumentException | RuntimeException $e) {
             return $this->errorResponse($e->getMessage(), 422);

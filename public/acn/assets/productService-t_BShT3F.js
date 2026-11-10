@@ -1,0 +1,1 @@
+import{a as e}from"./main-6kgjY3Mz.js";var t=`/pharmacy/product-api`,n={getAll(n){return e.get(t,{params:n})},getById(n){return e.get(`${t}/show/${n}`)},create(n){return e.post(`${t}/create`,n)},update(n,r){return e.put(`${t}/update/${n}`,r)},delete(n){return e.delete(`${t}/delete/${n}`)}};export{n as t};

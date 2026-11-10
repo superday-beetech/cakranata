@@ -1,4 +1,5 @@
 import api from "@/api/client";
+import type { ApiResponse } from "@/types/types";
 
 export interface Unit {
     id: number;
@@ -25,14 +26,6 @@ export interface UnitListData {
     pagination: UnitPagination;
 }
 
-export interface UnitApiResponse<T> {
-    status: number;
-    error: boolean;
-    message: string | string[];
-    data?: T;
-    errors?: Record<string, string>;
-}
-
 const BASE_URL = "/pharmacy/unit-api";
 
 const unitService = {
@@ -41,29 +34,29 @@ const unitService = {
         per_page?: number;
         search?: string;
     }) {
-        return api.get<UnitApiResponse<UnitListData>>(BASE_URL, { params });
+        return api.get<ApiResponse<UnitListData>>(BASE_URL, { params });
     },
 
     getById(id: number) {
-        return api.get<UnitApiResponse<Unit>>(`${BASE_URL}/show/${id}`);
+        return api.get<ApiResponse<Unit>>(`${BASE_URL}/show/${id}`);
     },
 
     create(payload: UnitPayload) {
-        return api.post<UnitApiResponse<Unit>>(
+        return api.post<ApiResponse<Unit>>(
             `${BASE_URL}/create`,
             payload
         );
     },
 
     update(id: number, payload: UnitPayload) {
-        return api.put<UnitApiResponse<Unit>>(
+        return api.put<ApiResponse<Unit>>(
             `${BASE_URL}/update/${id}`,
             payload
         );
     },
 
     delete(id: number) {
-        return api.delete<UnitApiResponse<{ id: number }>>(
+        return api.delete<ApiResponse<{ id: number }>>(
             `${BASE_URL}/delete/${id}`
         );
     },

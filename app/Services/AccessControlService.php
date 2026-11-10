@@ -12,8 +12,6 @@ use RuntimeException;
 
 class AccessControlService
 {
-    private const SUPERADMIN_GROUP = 'superadmin';
-
     protected BaseConnection $db;
 
     /**
@@ -26,7 +24,7 @@ class AccessControlService
     public function __construct(?BaseConnection $db = null)
     {
         $this->db = $db ?? Database::connect();
-        $this->policy = $policy ?? config(AuthPolicy::class);
+        $this->policy = config(AuthPolicy::class);
     }
 
     /**
@@ -57,22 +55,7 @@ class AccessControlService
 
         return $this->activeUserCache[$userId] = $isActive;
     }
-    /* public function isActiveUser(int $userId): bool
-    {
-        if ($userId <= 0) {
-            return false;
-        }
 
-        if (array_key_exists($userId, $this->activeUserCache)) {
-            return $this->activeUserCache[$userId];
-        }
-
-        return $this->activeUserCache[$userId] =
-            $this->db->table('users')
-            ->where('id', $userId)
-            ->where('deleted_at', null)
-            ->countAllResults() > 0;
-    } */
 
     /**
      * Memeriksa keanggotaan grup superadmin.
@@ -87,10 +70,19 @@ class AccessControlService
             return $this->superadminCache[$userId];
         }
 
+        $groups = array_values(array_filter(
+            $this->policy->bypassGroups,
+            static fn($group): bool => is_string($group) && trim($group) !== ''
+        ));
+
+        if ($groups === []) {
+            return $this->superadminCache[$userId] = false;
+        }
+
         return $this->superadminCache[$userId] =
             $this->db->table('auth_groups_users')
             ->where('user_id', $userId)
-            ->where('group', $this->policy->bypassGroups)
+            ->whereIn('group', $groups)
             ->countAllResults() > 0;
     }
 

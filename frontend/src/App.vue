@@ -2,14 +2,26 @@
 import { computed, defineAsyncComponent } from "vue";
 import { useRoute } from "vue-router";
 
-// Layout dimuat sesuai route yang sedang aktif.
-// Halaman auth tidak perlu mengunduh dependensi layout backend.
 const AuthLayout = defineAsyncComponent(() => import("@/layouts/AuthLayout.vue"));
+
 const BackendLayout = defineAsyncComponent(() => import("@/layouts/BackendLayout.vue"));
+
+const PosLayout = defineAsyncComponent(() => import("@/layouts/PosLayout.vue"));
 
 const route = useRoute();
 
-const currentLayout = computed(() => (route.meta.layout === "backend" ? BackendLayout : AuthLayout));
+const currentLayout = computed(() => {
+  switch (route.meta.layout) {
+    case "backend":
+      return BackendLayout;
+
+    case "pos":
+      return PosLayout;
+
+    default:
+      return AuthLayout;
+  }
+});
 </script>
 
 <template>

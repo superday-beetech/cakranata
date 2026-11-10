@@ -76,13 +76,13 @@ function changePerPage(value: number | string): void {
   loadData();
 }
 
-function formatNumber(value: number): string {
+function formatNumber(value: number | string): string {
   return new Intl.NumberFormat("id-ID", {
     maximumFractionDigits: 2,
   }).format(Number(value) || 0);
 }
 
-function formatCurrency(value: number): string {
+function formatCurrency(value: number | string): string {
   return new Intl.NumberFormat("id-ID", {
     style: "currency",
     currency: "IDR",

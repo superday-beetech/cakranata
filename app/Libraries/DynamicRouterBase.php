@@ -9,6 +9,7 @@ use App\Libraries\DynamicRouter\HttpVerbPolicy;
 use App\Libraries\DynamicRouter\MethodPolicy;
 use App\Libraries\DynamicRouter\RateLimiter;
 use App\Libraries\DynamicRouter\RouteResolver;
+use App\Libraries\DynamicRouter\RouteRegistrySynchronizer;
 use App\Libraries\DynamicRouter\RouterResponseHandler;
 use CodeIgniter\Controller;
 use CodeIgniter\Exceptions\PageNotFoundException;
@@ -71,9 +72,6 @@ abstract class DynamicRouterBase extends Controller
 
     /** @var array endpoint => required roles */
     protected array $requiredRoles = [];
-
-    /** @var array alias => [Controller, method] (tidak dipakai di base; hapus bila tak dipakai turunan) */
-    protected array $routeAliases = [];
 
     /** @var callable|null */
     protected $fallbackHandler = null;
@@ -302,21 +300,13 @@ abstract class DynamicRouterBase extends Controller
         }
 
 
-        // ganti blok `if (ENVIRONMENT === 'production')`:
+        // Di luar development/testing, setting tidak boleh mematikan fitur keamanan.
         if (! in_array(ENVIRONMENT, self::RELAXABLE_ENVIRONMENTS, true)) {
             log_message('critical', "DynamicRouter: setting {$settingKey} dimatikan di " . ENVIRONMENT . ', diabaikan.');
 
             return true;
         }
 
-        return false;
-
-        /* if (ENVIRONMENT === 'production') {
-            log_message('critical', "DynamicRouter: setting {$settingKey} dimatikan di production, diabaikan.");
-
-            return true;
-        }
- */
         return false;
     }
 
@@ -517,53 +507,6 @@ abstract class DynamicRouterBase extends Controller
         }
 
         return true;
-    }
-
-    protected function runController22222(string $controller, string $method, array $params = [])
-    {
-        $className = $this->controllerClasses[$controller] ?? null;
-
-        if ($className === null || ! class_exists($className)) {
-            return $this->handleNotFound('NOT_FOUND', "Controller '{$controller}' tidak ditemukan.");
-        }
-
-        if (
-            ! str_starts_with($className, trim($this->moduleNamespace, '\\') . '\\')
-            || ! is_subclass_of($className, Controller::class)
-        ) {
-            return $this->handleNotFound('NOT_FOUND', 'Halaman tidak ditemukan.');
-        }
-
-        // $method sudah final dari route(); pastikan benar-benar public & non-static.
-        try {
-            $reflection = new ReflectionMethod($className, $method);
-        } catch (ReflectionException) {
-            return $this->handleNotFound('NOT_FOUND', "Method '{$controller}::{$method}' tidak ditemukan.");
-        }
-
-        if (! $reflection->isPublic() || $reflection->isStatic()) {
-            return $this->handleNotFound('NOT_FOUND', "Method '{$controller}::{$method}' tidak ditemukan.");
-        }
-
-        // Cegah key string menjadi named argument, lalu cek jumlah argumen.
-        $params = array_values($params);
-
-        if (
-            count($params) < $reflection->getNumberOfRequiredParameters()
-            || (! $reflection->isVariadic() && count($params) > $reflection->getNumberOfParameters())
-        ) {
-            return $this->handleNotFound('NOT_FOUND', 'Halaman tidak ditemukan.');
-        }
-
-        $instance = new $className();
-
-        if (! $instance instanceof Controller) {
-            return $this->handleNotFound('NOT_FOUND', "Controller '{$controller}' tidak valid.");
-        }
-
-        $instance->initController($this->request, $this->response, $this->logger);
-
-        return $instance->{$method}(...$params);
     }
 
     protected function handleNotFound(string $codeOrMessage = 'NOT_FOUND', ?string $customMessage = null)
@@ -849,325 +792,15 @@ abstract class DynamicRouterBase extends Controller
         return APPPATH . 'Config/RouterConfig.php';
     }
 
-    /**
-     * Daftarkan endpoint baru ke route_registry (is_allowed=0 sampai disetujui).
-     * Panggil dari Spark command, bukan dari request web.
-     * Butuh unique index (module, endpoint).
-     */
-    public static function syncRouteRegistry2222(): int
-    {
-        $db = \Config\Database::connect();
-
-        // Satu query untuk semua endpoint yang sudah ada.
-        $existing = [];
-
-        foreach ($db->table('route_registry')->select('module, endpoint')->get()->getResultArray() as $row) {
-            $existing[$row['module'] . '|' . $row['endpoint']] = true;
-        }
-
-        $rows = [];
-
-        foreach (self::scanAllModules() as $module => $data) {
-            foreach ($data['controllers'] as $controller => $info) {
-                foreach ($info['methods'] as $method) {
-                    $endpoint = $controller . '::' . $method;
-                    $key      = $module . '|' . $endpoint;
-
-                    if (isset($existing[$key])) {
-                        continue;
-                    }
-
-                    $existing[$key] = true;
-
-                    $rows[] = [
-                        'module'        => $module,
-                        'controller'    => $controller,
-                        'method'        => $method,
-                        'endpoint'      => $endpoint,
-                        'is_discovered' => 1,
-                        'is_routable'   => 0,
-                        'is_allowed'    => 0,
-                        'scan_status'   => 'new',
-                    ];
-                }
-            }
-        }
-
-        if ($rows === []) {
-            return 0;
-        }
-
-        $db->transStart();
-
-        foreach (array_chunk($rows, 200) as $chunk) {
-            $db->table('route_registry')->ignore(true)->insertBatch($chunk);
-        }
-
-        $db->transComplete();
-
-        if (! $db->transStatus()) {
-            throw new RuntimeException('syncRouteRegistry gagal menyimpan route_registry.');
-        }
-
-        return count($rows);
-    }
-
+    /** @deprecated Gunakan RouteRegistrySynchronizer::scanAllModules(). */
     public static function scanAllModules(): array
     {
-        $result = [];
-
-        foreach (self::moduleFolders() as $module) {
-            // Dua cakupan: controller web dan controller API (Controllers/API/V1).
-            // Registry menyimpan keduanya; tanpa cakupan API, sync akan menandai endpoint API
-            // sebagai 'missing' dan mencabut persetujuannya.
-            $scan  = ['controllerClasses' => [], 'discoveredMethods' => []];
-            $dupes = [];
-
-            foreach (["Modules\\{$module}\\Controllers", "Modules\\{$module}\\Controllers\\API\\V1"] as $namespace) {
-                $part = (new ControllerScanner($module, $namespace, false))->scanWithoutCache();
-
-                foreach ($part['controllerClasses'] as $short => $class) {
-                    if (isset($scan['controllerClasses'][$short])) {
-                        $dupes[$short] = true;
-                        log_message('critical', "Nama controller sama di cakupan web dan API: {$module}::{$short}. Dilewati.");
-
-                        continue;
-                    }
-
-                    $scan['controllerClasses'][$short] = $class;
-                }
-
-                $scan['discoveredMethods'] = array_merge($scan['discoveredMethods'], $part['discoveredMethods']);
-            }
-
-            foreach (array_keys($dupes) as $short) {
-                unset($scan['controllerClasses'][$short]);
-                $scan['discoveredMethods'] = array_values(array_filter(
-                    $scan['discoveredMethods'],
-                    static fn(string $e): bool => ! str_starts_with($e, $short . '::')
-                ));
-            }
-
-            $scan['discoveredMethods'] = array_values(array_unique($scan['discoveredMethods']));
-
-            if ($scan['controllerClasses'] === []) {
-                continue;
-            }
-
-            $controllers = [];
-
-            foreach ($scan['controllerClasses'] as $short => $class) {
-                $controllers[$short] = ['class' => $class, 'methods' => []];
-            }
-
-            foreach ($scan['discoveredMethods'] as $endpoint) {
-                [$controller, $method] = explode('::', $endpoint, 2);
-                $controllers[$controller]['methods'][] = $method;
-            }
-
-            $result[$module] = [
-                'method_count'       => count($scan['discoveredMethods']),
-                'controllers'        => $controllers,
-                'discovered_methods' => $scan['discoveredMethods'],
-            ];
-        }
-
-        return $result;
+        return RouteRegistrySynchronizer::scanAllModules();
     }
 
-    private static function moduleFolders(): array
-    {
-        $folders = [];
-
-        foreach (glob(ROOTPATH . 'modules/*', GLOB_ONLYDIR) ?: [] as $dir) {
-            $name = basename($dir);
-
-            if (preg_match('/^[A-Za-z][A-Za-z0-9_]*$/', $name) === 1) {
-                $folders[] = $name;
-            }
-        }
-
-        sort($folders);
-
-        return $folders;
-    }
-
+    /** @deprecated Gunakan RouteRegistrySynchronizer::syncRouteRegistry(). */
     public static function syncRouteRegistry(): int
     {
-        $db         = \Config\Database::connect();
-        $scanned    = self::scanAllModules();
-        $discovered = [];
-
-        foreach ($scanned as $module => $data) {
-            foreach ($data['controllers'] as $controller => $info) {
-                foreach ($info['methods'] as $method) {
-                    $endpoint = $controller . '::' . $method;
-
-                    $discovered[$module . '|' . $endpoint] = compact('module', 'controller', 'method', 'endpoint');
-                }
-            }
-        }
-
-        $existing = [];
-
-        foreach ($db->table('route_registry')->select('id, module, endpoint, scan_status')->get()->getResultArray() as $row) {
-            $existing[$row['module'] . '|' . $row['endpoint']] = $row;
-        }
-
-        $insert = $reappeared = $missing = [];
-
-        foreach ($discovered as $key => $d) {
-            if (! isset($existing[$key])) {
-                $insert[] = $d + [
-                    'is_discovered' => 1,
-                    'is_routable'   => 0,
-                    'is_allowed'    => 0,
-                    'scan_status'   => 'new',
-                ];
-            } elseif (($existing[$key]['scan_status'] ?? '') === 'missing') {
-                $reappeared[] = (int) $existing[$key]['id'];
-            }
-        }
-
-        // Tandai hilang hanya untuk modul yang berhasil dipindai (hindari kehilangan
-        // persetujuan massal bila scan gagal sementara).
-        foreach ($existing as $key => $row) {
-            if (
-                ! isset($discovered[$key])
-                && isset($scanned[$row['module']])
-                && ($row['scan_status'] ?? '') !== 'missing'
-            ) {
-                $missing[] = (int) $row['id'];
-            }
-        }
-
-        $db->transStart();
-
-        foreach (array_chunk($insert, 200) as $chunk) {
-            $db->table('route_registry')->ignore(true)->insertBatch($chunk);
-        }
-
-        if ($reappeared !== []) {
-            $db->table('route_registry')->whereIn('id', $reappeared)->update([
-                'is_discovered' => 1,
-                'is_routable' => 0,
-                'is_allowed' => 0,
-                'scan_status' => 'new',
-            ]);
-        }
-
-        if ($missing !== []) {
-            $db->table('route_registry')->whereIn('id', $missing)->update([
-                'is_discovered' => 0,
-                'is_routable' => 0,
-                'is_allowed' => 0,
-                'scan_status' => 'missing',
-            ]);
-        }
-
-        $db->transComplete();
-
-        if (! $db->transStatus()) {
-            throw new RuntimeException('syncRouteRegistry gagal menyimpan route_registry.');
-        }
-
-        return count($insert) + count($reappeared);
-    }
-
-    public static function scanAllModules22222(): array
-    {
-        $modulesPath = ROOTPATH . 'modules';
-        $result      = [];
-
-        if (! is_dir($modulesPath)) {
-            return $result;
-        }
-
-        foreach (new \DirectoryIterator($modulesPath) as $moduleDir) {
-            if ($moduleDir->isDot() || ! $moduleDir->isDir()) {
-                continue;
-            }
-
-            $module         = $moduleDir->getFilename();
-            $controllerPath = $moduleDir->getPathname() . DIRECTORY_SEPARATOR . 'Controllers';
-
-            if (! is_dir($controllerPath)) {
-                continue;
-            }
-
-            $namespace   = 'Modules\\' . $module . '\\Controllers';
-            $controllers = [];
-            $methods     = [];
-
-            $iterator = new \RecursiveIteratorIterator(
-                new \RecursiveDirectoryIterator($controllerPath, \FilesystemIterator::SKIP_DOTS)
-            );
-
-            foreach ($iterator as $file) {
-                if (! $file->isFile() || $file->getExtension() !== 'php') {
-                    continue;
-                }
-
-                $relativePath  = substr($file->getPathname(), strlen($controllerPath) + 1);
-                $relativeClass = str_replace(DIRECTORY_SEPARATOR, '\\', substr($relativePath, 0, -4));
-                $className     = $namespace . '\\' . $relativeClass;
-
-                if (! class_exists($className)) {
-                    continue;
-                }
-
-                try {
-                    $reflection = new ReflectionClass($className);
-                } catch (ReflectionException) {
-                    continue;
-                }
-
-                if (! $reflection->isInstantiable() || $reflection->isAbstract()) {
-                    continue;
-                }
-
-                // Router modul bukan controller endpoint.
-                if ($reflection->isSubclassOf(self::class) || $reflection->getShortName() === 'DynamicRouter') {
-                    continue;
-                }
-
-                $controller = $reflection->getShortName();
-
-                // Router memakai nama pendek sebagai key; tolak duplikat di subfolder lain.
-                if (isset($controllers[$controller])) {
-                    log_message('warning', "scanAllModules: nama controller ganda '{$controller}' di modul '{$module}', dilewati: {$className}");
-
-                    continue;
-                }
-
-                $controllers[$controller] = [
-                    'class'   => $className,
-                    'methods' => [],
-                ];
-
-                foreach ($reflection->getMethods(ReflectionMethod::IS_PUBLIC) as $method) {
-                    if (
-                        $method->getDeclaringClass()->getName() !== $reflection->getName()
-                        || $method->isStatic()
-                        || $method->isConstructor()
-                        || str_starts_with($method->getName(), '_')
-                    ) {
-                        continue;
-                    }
-
-                    $methodName                            = $method->getName();
-                    $controllers[$controller]['methods'][] = $methodName;
-                    $methods[]                             = $controller . '::' . $methodName;
-                }
-            }
-
-            $result[$module] = [
-                'method_count'       => count($methods),
-                'controllers'        => $controllers,
-                'discovered_methods' => $methods,
-            ];
-        }
-
-        return $result;
+        return RouteRegistrySynchronizer::syncRouteRegistry();
     }
 }

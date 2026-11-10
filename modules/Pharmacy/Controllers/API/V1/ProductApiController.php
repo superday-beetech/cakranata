@@ -25,48 +25,6 @@ class ProductApiController extends ApiController
         $this->unitModel = new UnitModel();
     }
 
-    /* public function index()
-    {
-        try {
-            $builder = $this->productModel
-                ->select('products.*, categories.name AS category_name, units.name AS unit_name, units.abbreviation AS unit_abbreviation')
-                ->join('categories', 'categories.id = products.category_id', 'left')
-                ->join('units', 'units.id = products.unit_id', 'left');
-
-            if ($this->request->getGet('search')) {
-                $search = trim((string) $this->request->getGet('search'));
-
-                $builder->groupStart()
-                    ->like('products.name', $search)
-                    ->orLike('products.sku', $search)
-                    ->orLike('products.barcode', $search)
-                    ->groupEnd();
-            }
-
-            if ($this->request->getGet('category_id')) {
-                $builder->where(
-                    'products.category_id',
-                    (int) $this->request->getGet('category_id')
-                );
-            }
-
-            if ($this->request->getGet('is_active') !== null) {
-                $builder->where(
-                    'products.is_active',
-                    (int) $this->request->getGet('is_active')
-                );
-            }
-
-            $data = $builder
-                ->orderBy('products.name', 'ASC')
-                ->findAll();
-
-            return $this->successResponse($data, 'Data produk berhasil diambil.');
-        } catch (Throwable $e) {
-            log_message('error', '[ProductApiController::index] ' . $e->getMessage());
-            return $this->errorResponse('Gagal mengambil data produk.', 500);
-        }
-    } */
 
     public function index()
     {
@@ -210,6 +168,7 @@ class ProductApiController extends ApiController
             );
         }
     }
+
 
     public function show($id = null)
     {

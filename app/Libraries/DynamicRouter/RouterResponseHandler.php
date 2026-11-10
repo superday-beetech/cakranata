@@ -6,7 +6,6 @@ namespace App\Libraries\DynamicRouter;
 
 use Closure;
 use CodeIgniter\HTTP\ResponseInterface;
-use CodeIgniter\Exceptions\PageNotFoundException;
 use Throwable;
 
 class RouterResponseHandler
@@ -266,6 +265,21 @@ class RouterResponseHandler
 
         if (! in_array($status, [401, 403, 404, 405, 429, 500], true)) {
             $status = 403;
+        }
+
+        // Production: jangan bocorkan alasan internal (endpoint terdaftar atau tidak,
+        // status akun, dst.) ke klien. Alasan asli tetap tercatat di log.
+        if (ENVIRONMENT === 'production') {
+            log_message('info', 'DynamicRouter access decision: {reason} ({status})', ['reason' => $code, 'status' => $status]);
+
+            [$code, $message] = match ($status) {
+                401     => ['UNAUTHENTICATED', 'Autentikasi diperlukan.'],
+                404     => ['NOT_FOUND', 'Sumber daya tidak ditemukan.'],
+                405     => ['METHOD_NOT_ALLOWED', 'Metode tidak diizinkan.'],
+                429     => ['TOO_MANY_REQUESTS', 'Terlalu banyak permintaan.'],
+                500     => ['INTERNAL_ERROR', 'Terjadi kesalahan pada server.'],
+                default => ['ACCESS_DENIED', 'Akses ditolak.'],
+            };
         }
 
         return $this->respond($message, $status, $code);

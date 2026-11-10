@@ -16,19 +16,7 @@ class RouteResolver
 
     public function normalizeControllerName(string $controller): string
     {
-        $controller = preg_replace(
-            '/([A-Z]+)([A-Z][a-z])/',
-            '$1-$2',
-            $controller
-        );
-
-        $controller = preg_replace(
-            '/([a-z0-9])([A-Z])/',
-            '$1-$2',
-            $controller
-        );
-
-        return strtolower($controller ?? '');
+        return NameNormalizer::kebab($controller);
     }
 
     public function resolveEffectiveMethod(

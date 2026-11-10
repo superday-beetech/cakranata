@@ -1,5 +1,6 @@
 
 import api from "@/api/client";
+import type { ApiResponse } from "@/types/types";
 
 export interface Category {
     id: number;
@@ -26,14 +27,6 @@ export interface CategoryPagination {
 export interface CategoryListData {
     items: Category[];
     pagination: CategoryPagination;
-}
-
-export interface ApiResponse<T> {
-    status: number;
-    error: boolean;
-    message: string | string[];
-    data?: T;
-    errors?: Record<string, string>;
 }
 
 const BASE_URL = "/pharmacy/category-api";

@@ -20,10 +20,14 @@
     "paths": {
       "@/*": ["./src/*"],
       "@router": ["./src/router/index.ts"],
+      "@api/*": ["./src/api/*"],
+      "@assets/*": ["./src/assets/*"],
+      "@composables/*": ["./src/composables/*"],
       "@components/*": ["./src/components/*"],
       "@modules/*": ["./src/modules/*"],
       "@layouts/*": ["./src/layouts/*"],
       "@stores/*": ["./src/stores/*"],
+      "@types/*": ["./src/types/*"],
       "@utils/*": ["./src/utils/*"]
     }
   },

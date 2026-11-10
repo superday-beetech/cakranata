@@ -3,7 +3,8 @@ import { computed, onMounted, ref } from "vue";
 import { notify } from "@/utils/notification";
 import { useModalStore } from "@/composables/modal";
 
-import financeService, { type ExpensePayload } from "../services/financeService";
+import financeService from "../services/financeService";
+import type { ExpensePayload } from "../types/finance";
 
 import ExpenseFormModal from "./ExpenseFormModal.vue";
 
