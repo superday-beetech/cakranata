@@ -189,6 +189,9 @@ class PaymentService
             }
 
             if ($approved) {
+                // Pembayaran pending lain tetap mereservasi sisa tagihan.
+                $this->assertOutstanding($sale, (float) $payment['amount'], $paymentId);
+
                 $method = $this->db->table('payment_methods')
                     ->where('id', $payment['payment_method_id'])
                     ->get()->getRowArray();
@@ -241,11 +244,25 @@ class PaymentService
         return $method;
     }
 
-    private function assertOutstanding(array $sale, float $amount): void
-    {
-        // sales.paid_amount remains the authoritative accumulated total,
-        // including legacy POS payments created before this payment ledger.
-        $paid = (float) $sale['paid_amount'];
+    private function assertOutstanding(
+        array $sale,
+        float $amount,
+        ?int $excludePendingPaymentId = null
+    ): void {
+        // sales.paid_amount includes confirmed legacy and ledger payments.
+        // Pending manual transfers reserve the remaining balance as well.
+        $pendingQuery = $this->db->table('sale_payments')
+            ->selectSum('amount', 'pending_total')
+            ->where('sale_id', $sale['id'])
+            ->where('status', 'pending_verification');
+
+        if ($excludePendingPaymentId !== null) {
+            $pendingQuery->where('id !=', $excludePendingPaymentId);
+        }
+
+        $pendingRow = $pendingQuery->get()->getRowArray();
+        $reserved = (float) ($pendingRow['pending_total'] ?? 0);
+        $paid = (float) $sale['paid_amount'] + $reserved;
 
         $outstanding = round((float) $sale['total_amount'] - $paid, 2);
 
