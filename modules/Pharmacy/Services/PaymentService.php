@@ -243,11 +243,9 @@ class PaymentService
 
     private function assertOutstanding(array $sale, float $amount): void
     {
-        $paid = (float) $this->db->table('sale_payments')
-            ->selectSum('amount', 'total_paid')
-            ->where('sale_id', $sale['id'])
-            ->where('status', 'paid')
-            ->get()->getRowArray()['total_paid'];
+        // sales.paid_amount remains the authoritative accumulated total,
+        // including legacy POS payments created before this payment ledger.
+        $paid = (float) $sale['paid_amount'];
 
         $outstanding = round((float) $sale['total_amount'] - $paid, 2);
 
@@ -264,11 +262,10 @@ class PaymentService
         int $userId,
         string $now
     ): void {
-        $paid = (float) $this->db->table('sale_payments')
-            ->selectSum('amount', 'total_paid')
-            ->where('sale_id', $sale['id'])
-            ->where('status', 'paid')
-            ->get()->getRowArray()['total_paid'];
+        // The sale row is locked by the caller. Add this payment to its
+        // existing balance so payments created before the ledger migration
+        // are not lost or counted twice.
+        $paid = round((float) $sale['paid_amount'] + $amount, 2);
 
         $total = (float) $sale['total_amount'];
         $status = $paid >= $total ? 'paid' : ($paid > 0 ? 'partial' : 'unpaid');
