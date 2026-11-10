@@ -1,0 +1,8 @@
+// Alert sukses otomatis hilang 3 detik
+showAlert("Data berhasil disimpan!", "success", 3000, "Sukses!");
+
+// Alert error dengan close manual (tidak ada timer)
+showAlert("Terjadi kesalahan input!", "danger", false, "Error!");
+
+// Alert warning dengan icon custom
+showAlert("Perhatian! Maksimal 3 level.", "warning", 4000, "Warning", "ti ti-alert-triangle");

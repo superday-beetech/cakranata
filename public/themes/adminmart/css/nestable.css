@@ -1,0 +1,137 @@
+.dd.nestable {
+    width: 100%;
+    max-width: 100%;
+    padding: 0;
+    margin: 0;
+}
+
+.list-group {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.list-group-item {
+     padding: 0;
+    background: transparent; /* biar border ambil dari .item-row */
+    border: none;            /* hilangkan border disini */
+    border-radius: 0;
+    margin: 0;
+    font-size: 0.875rem;
+}
+
+.list-group-item:hover {
+    background: transparent;
+}
+
+/* Row utama dalam setiap item */
+.item-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    padding: 0 5px 0 0;
+    border: 1px solid #dee2e6;   /* border pindah kesini */
+    border-radius: 4px;          /* opsional, biar agak lembut */
+    background: #fafafa;
+    margin-bottom: 4px;          /* jarak antar item */
+        text-decoration: none;
+}
+.item-row:hover {
+    background: transparent; /* efek hover */
+        text-decoration: none;
+}
+.item-row a {
+    padding: 0 !important;
+    text-decoration: none !important;
+    background: transparent !important;
+    color: inherit;
+}
+/* Bagian kiri: handle + nama */
+.item-left {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+/* handle */
+.handle {
+    cursor: grab;
+    font-size: 0.85rem;
+    color: #495057;
+    margin-right: 6px;
+    padding: 4px 6px;
+    background: #e9ecef;     /* background abu2 */
+    /* border: 1px solid #dee2e6; */
+    /* border-radius: 3px; */
+}
+.handle:active {
+    cursor: grabbing;
+    background: #dee2e6;
+}
+
+.item-label {
+    color: #212529;
+    font-weight: 500;
+    font-size: 0.875rem;
+    /* margin-left:8px; */
+}
+.item-label:hover {
+    color: #0a58ca;
+}
+
+/* Bagian kanan: aksi */
+.item-actions {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 4px;  /* atur jarak antar ikon (lebih kecil dari default bootstrap) */
+}
+
+/* .item-actions a { */
+    /* color: #495057; */
+    /* font-size: 0.85rem; */
+    /* padding: 2px;*/
+    /* line-height: 1; */
+    /* text-decoration: none; */
+/* } */
+/* .item-actions a:hover { */
+    /* color: #0a58ca; */
+    /* text-decoration: none; */
+/* } */
+
+.item-actions .btn {
+    cursor: pointer;      /* ubah cursor jadi pointer */
+    color: #495057;
+    font-size: 0.85rem;
+    padding: 2px 2px;
+    line-height: 1;
+    text-decoration: none;
+}
+
+.item-actions .btn:hover {
+    color: #0a58ca;
+    background-color: #e9ecef;  /* highlight ringan */
+    border-radius: 4px;
+}
+
+/* placeholder drag */
+.sortable-placeholder {
+    background: #e9ecef;
+    border: 2px dashed #adb5bd;
+    min-height: 30px;
+    margin: 3px 0;
+    border-radius: 0.375rem;
+}
+
+/* loader overlay */
+#loader {
+    display: none;
+    position: fixed;
+    z-index: 1050;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(233, 236, 239, 0.8) url('./img/loading.gif') center no-repeat;
+}

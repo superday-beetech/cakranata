@@ -1,0 +1,23 @@
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # 1. Blokir akses publik ke file-file sensitif dan penting di root
+    RewriteRule ^(\.env|composer\.(json|lock)|phpunit\.xml|spark|README\.md|\.gitignore) - [F,L]
+
+    # 2. Cegah directory listing (agar daftar folder tidak nampak jika Index of terbuka)
+    Options -Indexes
+
+    # 3. Jika file atau folder fisik benar-benar ada di root (misal aset publik manual), biarkan
+    RewriteCond %{REQUEST_FILENAME} -f [OR]
+    RewriteCond %{REQUEST_FILENAME} -d
+    RewriteRule ^ - [L]
+
+    # 4. Lempar sisa request lainnya ke dalam folder public/
+    RewriteRule ^((?!public/).*)$ public/$1 [L,NC]
+</IfModule>
+
+<IfModule mod_headers.c>
+    <FilesMatch "\.(woff|woff2|ttf|otf|eot)$">
+        Header set Access-Control-Allow-Origin "http://localhost:5173"
+    </FilesMatch>
+</IfModule>

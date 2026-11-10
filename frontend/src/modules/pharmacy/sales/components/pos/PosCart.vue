@@ -3,13 +3,8 @@ import PosCartItem from "./PosCartItem.vue";
 
 import type { PosCartItem as CartItem } from "../../types/sales";
 
-type DiscountMode = "amount" | "percent";
-
 defineProps<{
   items: CartItem[];
-  discountModes: Record<number, DiscountMode>;
-  discountInputs: Record<number, number>;
-  itemNotes: Record<number, string>;
   subtotal: number;
   disabled?: boolean;
 }>();
@@ -76,9 +71,9 @@ function currency(value: number): string {
             :key="item.product_id"
             :item="item"
             :index="index"
-            :discount-mode="discountModes[item.product_id] ?? 'amount'"
-            :discount-input="discountInputs[item.product_id] ?? item.discount_amount"
-            :note="itemNotes[item.product_id] ?? ''"
+            :discount-mode="item.discount_mode ?? 'amount'"
+            :discount-input="item.discount_value ?? item.discount_amount"
+            :note="item.notes ?? ''"
             :disabled="disabled"
             @quantity-change="emit('quantityChange', item.product_id, $event)"
             @price-change="emit('priceChange', item.product_id, $event)"

@@ -1,0 +1,94 @@
+{
+  "__plugin-vue_export-helper-BDNMzG2s.js": {
+    "file": "assets/_plugin-vue_export-helper-BDNMzG2s.js",
+    "name": "_plugin-vue_export-helper"
+  },
+  "_runtime-dom.esm-bundler-C6MHc6YP.js": {
+    "file": "assets/runtime-dom.esm-bundler-C6MHc6YP.js",
+    "name": "runtime-dom.esm-bundler"
+  },
+  "resources/js/app.js": {
+    "file": "assets/app-CCHG4nyq.js",
+    "name": "app",
+    "src": "resources/js/app.js",
+    "isEntry": true,
+    "imports": [
+      "_runtime-dom.esm-bundler-C6MHc6YP.js",
+      "__plugin-vue_export-helper-BDNMzG2s.js"
+    ]
+  },
+  "resources/js/erp/layouts/components/ModalSearch.vue": {
+    "file": "assets/ModalSearch-Bl3fi2Jj.js",
+    "name": "ModalSearch",
+    "src": "resources/js/erp/layouts/components/ModalSearch.vue",
+    "isDynamicEntry": true,
+    "imports": [
+      "_runtime-dom.esm-bundler-C6MHc6YP.js",
+      "resources/js/erp/main.js"
+    ]
+  },
+  "resources/js/erp/layouts/components/global/ModalGlobal.vue": {
+    "file": "assets/ModalGlobal-B62X07fI.js",
+    "name": "ModalGlobal",
+    "src": "resources/js/erp/layouts/components/global/ModalGlobal.vue",
+    "isDynamicEntry": true,
+    "imports": [
+      "_runtime-dom.esm-bundler-C6MHc6YP.js",
+      "__plugin-vue_export-helper-BDNMzG2s.js",
+      "resources/js/erp/main.js"
+    ]
+  },
+  "resources/js/erp/main.js": {
+    "file": "assets/erp-bDUxuGk7.js",
+    "name": "erp",
+    "src": "resources/js/erp/main.js",
+    "isEntry": true,
+    "imports": [
+      "_runtime-dom.esm-bundler-C6MHc6YP.js"
+    ],
+    "dynamicImports": [
+      "resources/js/erp/pages/Login.vue",
+      "resources/js/erp/pages/Dashboard.vue",
+      "resources/js/erp/pages/NotFound.vue",
+      "resources/js/erp/layouts/components/ModalSearch.vue",
+      "resources/js/erp/layouts/components/global/ModalGlobal.vue"
+    ]
+  },
+  "resources/js/erp/pages/Dashboard.vue": {
+    "file": "assets/Dashboard-DGe0pMQs.js",
+    "name": "Dashboard",
+    "src": "resources/js/erp/pages/Dashboard.vue",
+    "isDynamicEntry": true,
+    "imports": [
+      "_runtime-dom.esm-bundler-C6MHc6YP.js"
+    ]
+  },
+  "resources/js/erp/pages/Login.vue": {
+    "file": "assets/Login-CEKewcks.js",
+    "name": "Login",
+    "src": "resources/js/erp/pages/Login.vue",
+    "isDynamicEntry": true,
+    "imports": [
+      "_runtime-dom.esm-bundler-C6MHc6YP.js",
+      "__plugin-vue_export-helper-BDNMzG2s.js",
+      "resources/js/erp/main.js"
+    ],
+    "css": [
+      "assets/Login-20JO3Rx8.css"
+    ]
+  },
+  "resources/js/erp/pages/NotFound.vue": {
+    "file": "assets/NotFound-Dg6UP02l.js",
+    "name": "NotFound",
+    "src": "resources/js/erp/pages/NotFound.vue",
+    "isDynamicEntry": true,
+    "imports": [
+      "_runtime-dom.esm-bundler-C6MHc6YP.js",
+      "__plugin-vue_export-helper-BDNMzG2s.js",
+      "resources/js/erp/main.js"
+    ],
+    "css": [
+      "assets/NotFound-BZynfrbi.css"
+    ]
+  }
+}

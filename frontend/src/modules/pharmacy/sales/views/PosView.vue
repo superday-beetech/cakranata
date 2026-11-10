@@ -6,12 +6,11 @@ const { soundEnabled, play: playPosSound, toggle: togglePosSound } = usePosSound
 
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { usePos } from "../composables/usePos";
-import type { PaymentMethod, ProductSearchResult, PosCartItem as CartItem, PosAdditionalCharge, Sale, SettlementMode, DiscountMode, TaxMode } from "../types/sales";
+import type { PaymentMethod, ProductSearchResult, PosAdditionalCharge, Sale, SettlementMode, DiscountMode, TaxMode } from "../types/sales";
 
 import productService from "@/modules/pharmacy/master/services/productService";
 import CustomerAutocomplete from "@/modules/pharmacy/master/components/CustomerAutocomplete.vue";
 
-import PosHeader from "../components/pos/PosHeader.vue";
 import PosProductSearch from "../components/pos/PosProductSearch.vue";
 import PosCart from "../components/pos/PosCart.vue";
 import PosSummary from "../components/pos/PosSummary.vue";
@@ -32,20 +31,6 @@ defineOptions({
  * TYPES
  * ----------------------------------------------------------------------- */
 
-type ChargeField = "type" | "description" | "amount";
-
-const PAYMENT_METHODS: {
-  value: PaymentMethod;
-  label: string;
-}[] = [
-  { value: "cash", label: "Tunai" },
-  { value: "transfer", label: "Transfer" },
-  { value: "qris", label: "QRIS" },
-  { value: "debit", label: "Debit" },
-  { value: "credit", label: "Kartu Kredit" },
-  { value: "other", label: "Lainnya" },
-];
-
 /* --------------------------------------------------------------------------
  * HELPERS
  * ----------------------------------------------------------------------- */
@@ -53,10 +38,6 @@ const PAYMENT_METHODS: {
 function toNumber(value: unknown): number {
   const number = Number(value);
   return Number.isFinite(number) ? number : 0;
-}
-
-function roundMoney(value: number): number {
-  return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
 function formatCurrency(value: number): string {
@@ -84,15 +65,6 @@ function getErrorMessage(error: unknown): string {
   }
 
   return message || err?.message || "Terjadi kesalahan.";
-}
-
-function today(): string {
-  const date = new Date();
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-
-  return `${year}-${month}-${day}`;
 }
 
 /* --------------------------------------------------------------------------
@@ -140,6 +112,28 @@ const {
   paymentAmount,
   notes,
 
+  transactionDiscountMode,
+  transactionDiscountValue,
+  taxMode,
+  taxValue,
+  additionalCharges,
+  settlementMode,
+  dueDate,
+  paymentReferenceNumber,
+
+  subtotal,
+  itemDiscount,
+  transactionDiscount,
+  discountTotal,
+  dpp,
+  taxAmount,
+  additionalChargesTotal,
+  grandTotal,
+
+  appliedAmount,
+  changeAmount,
+  remainingAmount,
+
   loadingSearch,
   processing,
   currentSale,
@@ -156,12 +150,23 @@ const {
   addProduct,
   updateQuantity,
   updateUnitPrice,
-  updateDiscount,
+  updateItemDiscount,
+  updateItemNotes,
   removeProduct,
   clearCart,
   setCustomer,
   setPaymentAmount,
   setPaymentMethod,
+  setTransactionDiscount,
+  setTax,
+  addAdditionalCharge,
+  updateAdditionalCharge,
+  removeAdditionalCharge,
+  setSettlementMode,
+  setDueDate,
+  setPaymentReferenceNumber,
+  payExact,
+  resetPaymentAmount,
   //   payExactAmount,
   createDraft,
   postCurrentSale,
@@ -192,81 +197,11 @@ const chargesSection = ref<HTMLElement | null>(null);
 const paymentSection = ref<HTMLElement | null>(null);
 const paymentInput = ref<HTMLElement | null>(null);
 
-const discountModes = ref<Record<number, DiscountMode>>({});
-const itemNotes = ref<Record<number, string>>({});
-
-const transactionDiscountMode = ref<DiscountMode>("amount");
-const transactionDiscountValue = ref(0);
-
-const taxMode = ref<TaxMode>("percent");
-const taxValue = ref(0);
-
-const settlementMode = ref<SettlementMode>("paid");
-const dueDate = ref(today());
-
-const paymentReferenceNumber = ref("");
-
-const additionalCharges = ref<PosAdditionalCharge[]>([]);
-let chargeSequence = 0;
-
 const bankName = ref("");
 const accountNumber = ref("");
 const accountHolder = ref("");
 const qrisImageUrl = ref<string | null>(null);
 const selectedPaymentMethod = computed<PaymentMethod>(() => paymentMethod.value ?? "cash");
-/* --------------------------------------------------------------------------
- * CALCULATIONS
- * ----------------------------------------------------------------------- */
-
-const subtotal = computed(() => roundMoney(cart.value.reduce((total, item) => total + toNumber(item.quantity) * toNumber(item.unit_price), 0)));
-
-const itemDiscount = computed(() => roundMoney(cart.value.reduce((total, item) => total + toNumber(item.discount_amount), 0)));
-
-const transactionDiscount = computed(() => {
-  const base = Math.max(0, subtotal.value - itemDiscount.value);
-  const input = Math.max(0, transactionDiscountValue.value);
-
-  const amount = transactionDiscountMode.value === "percent" ? (base * Math.min(input, 100)) / 100 : input;
-
-  return roundMoney(Math.min(base, amount));
-});
-
-const discountTotal = computed(() => itemDiscount.value + transactionDiscount.value);
-
-const dpp = computed(() => roundMoney(Math.max(0, subtotal.value - discountTotal.value)));
-
-const taxAmount = computed(() => {
-  const input = Math.max(0, taxValue.value);
-
-  const amount = taxMode.value === "percent" ? (dpp.value * Math.min(input, 100)) / 100 : input;
-
-  return roundMoney(amount);
-});
-
-const additionalChargesTotal = computed(() => roundMoney(additionalCharges.value.reduce((total, charge) => total + Math.max(0, toNumber(charge.amount)), 0)));
-
-const grandTotal = computed(() => roundMoney(dpp.value + taxAmount.value + additionalChargesTotal.value));
-
-const paidAmount = computed(() => {
-  if (settlementMode.value === "receivable") {
-    return 0;
-  }
-
-  return Math.min(Math.max(0, toNumber(paymentAmount.value)), grandTotal.value);
-});
-
-const remainingAmount = computed(() => Math.max(0, grandTotal.value - paidAmount.value));
-
-const changeAmount = computed(() => {
-  if (paymentMethod.value !== "cash" || settlementMode.value !== "paid") {
-    return 0;
-  }
-
-  return Math.max(0, toNumber(paymentAmount.value) - grandTotal.value);
-});
-
-const receivableAmount = computed(() => remainingAmount.value);
-
 const settlementLabel = computed(() => {
   switch (settlementMode.value) {
     case "partial":
@@ -277,23 +212,6 @@ const settlementLabel = computed(() => {
       return "Lunas";
   }
 });
-
-const discountInputs = computed<Record<number, number>>(() => {
-  const result: Record<number, number> = {};
-
-  for (const item of cart.value) {
-    const mode = discountModes.value[item.product_id] ?? "amount";
-    const discount = toNumber(item.discount_amount);
-
-    const gross = toNumber(item.quantity) * toNumber(item.unit_price);
-
-    result[item.product_id] = mode === "percent" && gross > 0 ? roundMoney((discount / gross) * 100) : discount;
-  }
-
-  return result;
-});
-
-const isFullyPaid = computed(() => remainingAmount.value <= 0);
 
 /* --------------------------------------------------------------------------
  * MESSAGES
@@ -353,12 +271,16 @@ async function handleSearch(): Promise<void> {
 }
 
 function handleAddProduct(product: ProductSearchResult): void {
+  const duplicate = cart.value.some((item) => item.product_id === product.id);
+
   try {
     clearMessages();
     addProduct(product);
+    void playPosSound(duplicate ? "duplicate" : "success");
     clearSearch();
     focusBarcode();
   } catch (error) {
+    void playPosSound("warning");
     showError(error);
   }
 }
@@ -378,11 +300,13 @@ async function handleBarcodeEnter(): Promise<void> {
     if (!product) {
       await searchProduct();
       errorMessage.value = "Barcode tidak ditemukan.";
+      void playPosSound("warning");
       return;
     }
 
     handleAddProduct(product);
   } catch (error) {
+    void playPosSound("error");
     showError(error);
   }
 }
@@ -397,10 +321,6 @@ function focusBarcode(): void {
 /* --------------------------------------------------------------------------
  * CART HANDLERS
  * ----------------------------------------------------------------------- */
-
-function getDiscountMode(productId: number): DiscountMode {
-  return discountModes.value[productId] ?? "amount";
-}
 
 function handleQuantityChange(productId: number, value: number): void {
   try {
@@ -419,50 +339,49 @@ function handlePriceChange(productId: number, value: number): void {
 }
 
 function handleDiscountModeChange(productId: number, mode: DiscountMode): void {
-  discountModes.value[productId] = mode;
-}
-
-function handleDiscountChange(productId: number, inputValue: number): void {
   const item = cart.value.find((row) => row.product_id === productId);
-
   if (!item) return;
 
-  const input = Math.max(0, inputValue);
+  try {
+    updateItemDiscount(productId, mode, toNumber(item.discount_value ?? item.discount_amount));
+  } catch (error) {
+    showError(error);
+  }
+}
 
-  const gross = toNumber(item.quantity) * toNumber(item.unit_price);
-
-  const discount = getDiscountMode(productId) === "percent" ? (gross * Math.min(input, 100)) / 100 : input;
+function handleDiscountChange(productId: number, value: number): void {
+  const item = cart.value.find((row) => row.product_id === productId);
+  if (!item) return;
 
   try {
-    updateDiscount(productId, roundMoney(Math.min(gross, discount)));
+    updateItemDiscount(productId, item.discount_mode ?? "amount", Math.max(0, value));
   } catch (error) {
     showError(error);
   }
 }
 
 function handleItemNoteChange(productId: number, value: string): void {
-  itemNotes.value[productId] = value;
+  try {
+    updateItemNotes(productId, value);
+  } catch (error) {
+    showError(error);
+  }
 }
 
 function handleRemoveProduct(productId: number): void {
   try {
     removeProduct(productId);
-    delete discountModes.value[productId];
-    delete itemNotes.value[productId];
   } catch (error) {
     showError(error);
   }
 }
 
 function handleClearCart(): void {
-  clearCart();
-
-  discountModes.value = {};
-  itemNotes.value = {};
-  transactionDiscountValue.value = 0;
-  taxValue.value = 0;
-  additionalCharges.value = [];
-  paymentReferenceNumber.value = "";
+  try {
+    clearCart();
+  } catch (error) {
+    showError(error);
+  }
 }
 
 /* --------------------------------------------------------------------------
@@ -478,59 +397,67 @@ function handleCustomerChange(customerId: number | null): void {
  * ----------------------------------------------------------------------- */
 
 function handleTransactionDiscountMode(mode: DiscountMode): void {
-  transactionDiscountMode.value = mode;
+  setTransactionDiscount(mode, transactionDiscountValue.value);
 }
 
 function handleTransactionDiscountValue(value: number): void {
-  transactionDiscountValue.value = Math.max(0, value);
+  setTransactionDiscount(transactionDiscountMode.value, Math.max(0, value));
 }
 
 function handleTaxMode(mode: TaxMode): void {
-  taxMode.value = mode;
+  setTax(mode, taxValue.value);
 }
 
 function handleTaxValue(value: number): void {
-  taxValue.value = Math.max(0, value);
+  setTax(taxMode.value, Math.max(0, value));
 }
 
 /* --------------------------------------------------------------------------
  * ADDITIONAL CHARGES
  * ----------------------------------------------------------------------- */
 
+let chargeSequence = 0;
+
 function addCharge(): void {
   chargeSequence++;
 
-  additionalCharges.value.push({
-    id: `charge-${chargeSequence}`,
-    type: "other",
-    label: "Biaya lainnya",
-    description: "",
-    amount: 0,
-  });
+  try {
+    addAdditionalCharge({
+      id: `charge-${chargeSequence}`,
+      type: "other",
+      label: "Biaya lainnya",
+      description: "",
+      amount: 0,
+    });
+  } catch (error) {
+    showError(error);
+  }
 }
 
 function updateCharge(id: string, field: "type" | "description" | "amount", value: string | number): void {
-  const charge = additionalCharges.value.find((item) => item.id === id);
-
-  if (!charge) return;
-
-  switch (field) {
-    case "amount":
-      charge.amount = Math.max(0, Number(value) || 0);
-      break;
-
-    case "description":
-      charge.description = String(value);
-      break;
-
-    case "type":
-      charge.type = value as PosAdditionalCharge["type"];
-      break;
+  try {
+    switch (field) {
+      case "amount":
+        updateAdditionalCharge(id, { amount: Math.max(0, Number(value) || 0) });
+        break;
+      case "description":
+        updateAdditionalCharge(id, { description: String(value) });
+        break;
+      case "type":
+        updateAdditionalCharge(id, { type: value as PosAdditionalCharge["type"] });
+        break;
+    }
+  } catch (error) {
+    showError(error);
   }
 }
 
 function removeCharge(id: string): void {
-  additionalCharges.value = additionalCharges.value.filter((item) => item.id !== id);
+  try {
+    removeAdditionalCharge(id);
+  } catch (error) {
+    showError(error);
+  }
 }
 
 /* --------------------------------------------------------------------------
@@ -538,17 +465,7 @@ function removeCharge(id: string): void {
  * ----------------------------------------------------------------------- */
 
 function handleSettlementMode(mode: SettlementMode): void {
-  settlementMode.value = mode;
-
-  if (mode === "receivable") {
-    setPaymentAmount(0);
-  } else if (mode === "paid") {
-    setPaymentAmount(grandTotal.value);
-  }
-
-  if (mode !== "paid" && !dueDate.value) {
-    dueDate.value = today();
-  }
+  setSettlementMode(mode);
 }
 
 function handlePaymentAmount(value: number): void {
@@ -560,17 +477,17 @@ function handlePaymentMethod(method: PaymentMethod): void {
 }
 
 function handleDueDate(value: string): void {
-  dueDate.value = value;
+  setDueDate(value);
 }
 
 function handleReferenceNumber(value: string): void {
-  paymentReferenceNumber.value = value;
+  setPaymentReferenceNumber(value);
 }
 
 function handleExactPayment(): void {
   if (settlementMode.value !== "paid") return;
 
-  setPaymentAmount(grandTotal.value);
+  payExact();
 }
 
 /* function handleExactPayment(): void {
@@ -580,7 +497,7 @@ function handleExactPayment(): void {
 } */
 
 function handleResetPayment(): void {
-  setPaymentAmount(0);
+  resetPaymentAmount();
 }
 
 /* --------------------------------------------------------------------------
@@ -588,19 +505,18 @@ function handleResetPayment(): void {
  * ----------------------------------------------------------------------- */
 
 /**
- * Backend saat ini belum menyimpan biaya tambahan, diskon transaksi,
- * dan tanggal jatuh tempo. Jangan membiarkan nilai lokal tersebut
- * hilang seolah-olah berhasil tersimpan.
+ * Diskon transaksi dan pajak sudah dipetakan ke payload backend.
+ * Biaya tambahan dan settlement tempo belum didukung oleh API lama.
  */
 const hasUnsupportedDraftValues = computed(() => {
-  return transactionDiscount.value > 0 || additionalChargesTotal.value > 0 || settlementMode.value !== "paid";
+  return additionalChargesTotal.value > 0 || settlementMode.value !== "paid";
 });
 
 async function handleCreateDraft(): Promise<void> {
   clearMessages();
 
   if (hasUnsupportedDraftValues.value) {
-    errorMessage.value = "Diskon transaksi, biaya tambahan, dan transaksi tempo belum didukung oleh payload backend penjualan saat ini.";
+    errorMessage.value = "Biaya tambahan dan transaksi tempo belum didukung oleh payload backend penjualan saat ini.";
     return;
   }
 
@@ -616,7 +532,7 @@ async function handlePostSale(): Promise<void> {
   clearMessages();
 
   if (hasUnsupportedDraftValues.value) {
-    errorMessage.value = "Data diskon transaksi, biaya tambahan, atau tempo belum dapat diposting karena backend belum menyimpan seluruh komponennya.";
+    errorMessage.value = "Biaya tambahan atau transaksi tempo belum dapat diposting karena backend belum menyimpan seluruh komponennya.";
     return;
   }
 
@@ -627,6 +543,7 @@ async function handlePostSale(): Promise<void> {
 
   try {
     await postCurrentSale();
+    void playPosSound("transaction");
     showSuccess("Penjualan berhasil diposting.");
     await loadHeldTransactions();
     focusBarcode();
@@ -663,15 +580,6 @@ async function handleNewTransaction(): Promise<void> {
 
   try {
     newTransaction();
-
-    discountModes.value = {};
-    itemNotes.value = {};
-    transactionDiscountValue.value = 0;
-    taxValue.value = 0;
-    additionalCharges.value = [];
-    paymentReferenceNumber.value = "";
-    settlementMode.value = "paid";
-    dueDate.value = today();
 
     clearMessages();
     focusBarcode();
@@ -941,9 +849,6 @@ onBeforeUnmount(() => {
           <div class="pos-cart-content">
             <PosCart
               :items="cart"
-              :discount-modes="discountModes"
-              :discount-inputs="discountInputs"
-              :item-notes="itemNotes"
               :subtotal="subtotal"
               :disabled="transactionLocked || processing"
               @quantity-change="handleQuantityChange"
@@ -1099,10 +1004,11 @@ onBeforeUnmount(() => {
               @update:payment-amount="handlePaymentAmount"
               @update:due-date="handleDueDate"
               @update:reference-number="handleReferenceNumber"
+              @submit="isDraft ? handlePostSale() : handleCreateDraft()"
             />
           </div>
 
-          <PosTotalPanel :total="grandTotal" :paid="paidAmount" :change="changeAmount" :remaining="remainingAmount" :settlement-label="settlementLabel" />
+          <PosTotalPanel :total="grandTotal" :paid="appliedAmount" :change="changeAmount" :remaining="remainingAmount" :settlement-label="settlementLabel" />
         </section>
 
         <!-- TRANSACTION NOTES -->
