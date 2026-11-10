@@ -93,10 +93,16 @@ class PaymentsApiController extends ApiController
             return $this->errorResponse('Format request tidak valid.', 400);
         }
 
+        $decision = (string) ($data['decision'] ?? '');
+
+        if (!in_array($decision, ['approve', 'reject'], true)) {
+            return $this->errorResponse('Keputusan verifikasi harus approve atau reject.', 422);
+        }
+
         try {
             $this->paymentService->verifyManualPayment(
                 (int) ($data['payment_id'] ?? 0),
-                ($data['decision'] ?? '') === 'approve',
+                $decision === 'approve',
                 $userId,
                 isset($data['notes']) ? (string) $data['notes'] : null
             );
