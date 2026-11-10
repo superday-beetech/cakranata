@@ -25,6 +25,8 @@ interface PaymentGatewayInterface
 
     public function cancelPayment(string $providerReference): array;
 
+    public function refundPayment(string $providerReference, float $amount): array;
+
     /**
      * Verify the provider signature against the untouched request body.
      */
