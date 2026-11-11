@@ -15,11 +15,30 @@ use Throwable;
  *   best-effort di file cache).
  * - Window dihitung dari bucket waktu, sehingga tidak bergeser pada setiap hit.
  * - Kunci cache di-hash agar tidak bisa bertabrakan akibat karakter yang diganti.
- * - Bila cache backend gagal, request DIIZINKAN (fail-open) dan error dicatat
- *   critical, supaya gangguan cache tidak melumpuhkan seluruh aplikasi.
+ * - Saat cache backend gagal:
+ *     - Endpoint dengan fail_closed=true (default untuk auth) -> DITOLAK.
+ *     - Endpoint lain -> DIIZINKAN (fail-open) agar gangguan cache tidak melumpuhkan
+ *       seluruh aplikasi.
  */
 class RateLimiter
 {
+    /**
+     * Endpoint yang WAJIB fail-closed saat cache gagal, meskipun
+     * RouterConfig tidak men-set fail_closed secara eksplisit.
+     * Ini adalah safety net untuk endpoint yang paling sensitif.
+     *
+     * @var list<string>
+     */
+    private const CRITICAL_ENDPOINTS = [
+        'Auth::loginAction',
+        'Auth::login',
+        'Auth::registerAction',
+        'Auth::register',
+        'Auth::forgotPasswordAction',
+        'Auth::resetPasswordAction',
+        'Auth::magicLinkAction',
+    ];
+
     public function __construct(
         private RequestInterface $request,
         private string $moduleFolder,
@@ -27,13 +46,6 @@ class RateLimiter
         private ?AuthenticationResolver $authenticationResolver = null,
         private ?CacheInterface $cache = null,
     ) {}
-
-    private const CRITICAL_ENDPOINTS = [
-        'AuthController::loginAction',
-        'AuthController::registerAction',
-        'AuthController::forgotPasswordAction',
-        'AuthController::resetPasswordAction',
-    ];
 
     public function checkRateLimit(string $endpoint): bool
     {
@@ -65,18 +77,20 @@ class RateLimiter
         try {
             return $this->hit($key, $window) <= $limit;
         } catch (Throwable $e) {
-            $isCritical = in_array($endpoint, self::CRITICAL_ENDPOINTS, true);
+            $failClosed = $this->shouldFailClosed($endpoint, $policy);
 
             log_message(
-                $isCritical ? 'error' : 'critical',
+                $failClosed ? 'error' : 'critical',
                 sprintf(
-                    'RateLimiter cache gagal (%s): %s',
-                    $isCritical ? 'fail-closed' : 'fail-open',
+                    'RateLimiter cache gagal (%s) endpoint=%s: %s',
+                    $failClosed ? 'fail-closed' : 'fail-open',
+                    $endpoint,
                     $e->getMessage()
                 )
             );
 
-            return ! $isCritical;
+            // fail-closed -> tolak (false); fail-open -> izinkan (true)
+            return ! $failClosed;
         }
     }
 
@@ -85,13 +99,26 @@ class RateLimiter
         return preg_replace('/[^a-zA-Z0-9_-]/', '_', $key) ?? '';
     }
 
+    /**
+     * Tentukan apakah endpoint harus fail-closed saat cache error.
+     *
+     * Prioritas:
+     * 1. Explicit config: RouterConfig['rateLimits'][endpoint]['fail_closed'].
+     * 2. Safety net: endpoint di CRITICAL_ENDPOINTS.
+     * 3. Default: fail-open (false).
+     */
+    private function shouldFailClosed(string $endpoint, array $policy): bool
+    {
+        if (array_key_exists('fail_closed', $policy)) {
+            return (bool) $policy['fail_closed'];
+        }
+
+        return in_array($endpoint, self::CRITICAL_ENDPOINTS, true);
+    }
+
     private function hit(string $key, int $ttl): int
     {
         $cache = $this->cache ?? cache();
-
-        if ($cache->get($key) === null) {
-            $cache->save($key, 0, $ttl);
-        }
 
         $value = $cache->increment($key);
 
@@ -99,11 +126,10 @@ class RateLimiter
             return $value;
         }
 
-        log_message('warning', 'RateLimiter: increment tidak atomik (file cache). Gunakan Redis untuk production.');
-
-
+        // Backend tanpa increment yang andal (mis. file cache): fallback baca-tulis.
+        // Bukan atomik, tapi minimal tetap menghitung. Gunakan Redis di production.
         $current = (int) ($cache->get($key) ?? 0);
-        $new = $current + 1;
+        $new     = $current + 1;
         $cache->save($key, $new, $ttl);
 
         return $new;

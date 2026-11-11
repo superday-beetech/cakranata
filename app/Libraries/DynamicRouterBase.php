@@ -117,8 +117,10 @@ abstract class DynamicRouterBase extends Controller
         $this->scanControllersAndMethods();
 
         // 3. Kebijakan method.
-        $this->methodPolicy = new MethodPolicy($this->discoveredMethods, $this->allowedMethods);
-
+        $this->methodPolicy = new MethodPolicy(
+            $this->discoveredMethods,
+            $this->allowedMethods,
+        );
         // 4. Resolver route.
         $this->routeResolver = new RouteResolver(
             $request,
@@ -204,7 +206,12 @@ abstract class DynamicRouterBase extends Controller
         if (! in_array($controller, $this->allowedControllers, true)) {
             $this->rejectAsNotFound('controller_policy', 'CONTROLLER_NOT_ALLOWED', ['controller' => $controller]);
         }
-        $methodDecision = $this->methodPolicy->diagnoseMethod($controller, $method);
+        $methodDecision = $this->methodPolicy->diagnoseMethod(
+            $controller,
+            $method,
+            $this->request->getMethod()  // ← tambahkan ini
+        );
+
 
         if (! $methodDecision['allowed']) {
             $this->rejectAsNotFound('method_policy', $methodDecision['reason'], [
