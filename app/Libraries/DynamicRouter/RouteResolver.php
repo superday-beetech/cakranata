@@ -72,9 +72,9 @@ class RouteResolver
         }
 
         if (($restful = $this->resolveRestful($controller, $verb, $rest)) !== null) {
-            [$method, $consumed] = $restful;
+            [$method, $arguments] = $restful;
 
-            return [$controller, $method, array_slice($rest, $consumed)];
+            return [$controller, $method, $arguments];
         }
 
         // Preserve the previous /controller/method/param... convention.
@@ -194,7 +194,8 @@ class RouteResolver
             return null;
         }
 
-        return [$method, $count];
+        // The consumed path segments are also the controller arguments (e.g. show($id)).
+        return [$method, $rest];
     }
 
     private function resolveCustomAction(string $controller, string $verb, array $rest): ?array
@@ -207,7 +208,7 @@ class RouteResolver
 
         // /controller/{id}/{action}
         if ($this->isIdLike($first) && ! $this->isIdLike($second)
-            && $this->isCustomAllowed($controller, $second)
+            && $this->isCustomAllowed($controller, $second, $verb)
         ) {
             $method = $this->resolveMethodExplicit($controller, $second, $verb);
 
@@ -218,7 +219,7 @@ class RouteResolver
 
         // /controller/{action}/{id}
         if (! $this->isIdLike($first) && $this->isIdLike($second)
-            && $this->isCustomAllowed($controller, $first)
+            && $this->isCustomAllowed($controller, $first, $verb)
         ) {
             $method = $this->resolveMethodExplicit($controller, $first, $verb);
 
@@ -230,7 +231,7 @@ class RouteResolver
         return null;
     }
 
-    private function isCustomAllowed(string $controller, string $action): bool
+    private function isCustomAllowed(string $controller, string $action, string $verb): bool
     {
         if ($action === '') {
             return false;
@@ -244,12 +245,8 @@ class RouteResolver
             return in_array($action, $this->customActions['*'], true);
         }
 
-        // Backward compatible default: discovered + MethodPolicy-allowed methods only.
-        return $this->methodPolicy->resolveDiscoveredMethod($controller, $action) !== null
-            && $this->methodPolicy->isMethodAllowed(
-                $controller,
-                $this->methodPolicy->resolveDiscoveredMethod($controller, $action)
-            );
+        // Backward compatible default: only a real, allowlisted action is eligible.
+        return $this->resolveMethodExplicit($controller, $action, $verb) !== null;
     }
 
     private function resolveMethodExplicit(string $controller, string $name, string $verb): ?string
