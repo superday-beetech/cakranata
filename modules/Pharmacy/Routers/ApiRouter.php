@@ -15,7 +15,7 @@ class ApiRouter extends DynamicRouterBase
     protected string $defaultController = 'PharmacyController';
 
 
-    public function route($seg1 = '', $seg2 = null, ...$params)
+    /* public function route($seg1 = '', $seg2 = null, ...$params)
     {
         if ($seg2 !== null && ctype_digit((string) $seg2)) {
             array_unshift($params, $seg2);
@@ -28,7 +28,7 @@ class ApiRouter extends DynamicRouterBase
         }
 
         return parent::route($seg1, $seg2, ...$params);
-    }
+    } */
 
     public function routeSSS($seg1 = '', $seg2 = null, ...$params)
     {

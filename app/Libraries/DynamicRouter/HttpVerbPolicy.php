@@ -14,8 +14,12 @@ class HttpVerbPolicy
 
     public function checkHttpVerb(string $endpoint): bool
     {
-        $verb = strtoupper($this->request->getMethod());
+        // Excluded = selalu izinkan (skip cek).
+        if ($this->isHttpVerbExcluded($endpoint)) {
+            return true;
+        }
 
+        // Jika ada di allowedHttpVerbs lokal, HARUS cocok.
         if (array_key_exists($endpoint, $this->allowedHttpVerbs)) {
             $allowed = $this->allowedHttpVerbs[$endpoint];
 
@@ -23,17 +27,17 @@ class HttpVerbPolicy
                 return false;
             }
 
-            $allowed = array_map(
-                static fn($item): string =>
-                is_string($item) ? strtoupper($item) : '',
+            $verb = strtoupper($this->request->getMethod());
+            $allowedUpper = array_map(
+                static fn($v): string => is_string($v) ? strtoupper($v) : '',
                 $allowed
             );
 
-            return in_array($verb, $allowed, true);
+            return in_array($verb, $allowedUpper, true);
         }
 
-        return service('routeRegistryAccess')
-            ->allowsHttpVerb($endpoint, $verb);
+        // Fallback: registry.
+        return service('routeRegistryAccess')->allowsHttpVerb($endpoint, strtoupper($this->request->getMethod()));
     }
 
     public function isHttpVerbExcluded(string $endpoint): bool

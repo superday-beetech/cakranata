@@ -28,6 +28,13 @@ class RateLimiter
         private ?CacheInterface $cache = null,
     ) {}
 
+    private const CRITICAL_ENDPOINTS = [
+        'AuthController::loginAction',
+        'AuthController::registerAction',
+        'AuthController::forgotPasswordAction',
+        'AuthController::resetPasswordAction',
+    ];
+
     public function checkRateLimit(string $endpoint): bool
     {
         $policy = $this->rateLimits[$endpoint] ?? null;
@@ -58,9 +65,18 @@ class RateLimiter
         try {
             return $this->hit($key, $window) <= $limit;
         } catch (Throwable $e) {
-            log_message('critical', 'RateLimiter cache gagal (fail-open): {error}', ['error' => $e->getMessage()]);
+            $isCritical = in_array($endpoint, self::CRITICAL_ENDPOINTS, true);
 
-            return true;
+            log_message(
+                $isCritical ? 'error' : 'critical',
+                sprintf(
+                    'RateLimiter cache gagal (%s): %s',
+                    $isCritical ? 'fail-closed' : 'fail-open',
+                    $e->getMessage()
+                )
+            );
+
+            return ! $isCritical;
         }
     }
 
@@ -83,10 +99,13 @@ class RateLimiter
             return $value;
         }
 
-        // Backend tanpa increment yang andal: fallback baca-tulis.
-        $value = (int) ($cache->get($key) ?? 0) + 1;
-        $cache->save($key, $value, $ttl);
+        log_message('warning', 'RateLimiter: increment tidak atomik (file cache). Gunakan Redis untuk production.');
 
-        return $value;
+
+        $current = (int) ($cache->get($key) ?? 0);
+        $new = $current + 1;
+        $cache->save($key, $new, $ttl);
+
+        return $new;
     }
 }

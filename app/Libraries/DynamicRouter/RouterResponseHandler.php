@@ -6,6 +6,7 @@ namespace App\Libraries\DynamicRouter;
 
 use Closure;
 use CodeIgniter\HTTP\ResponseInterface;
+use Config\AuthPolicy;
 use Throwable;
 
 class RouterResponseHandler
@@ -38,7 +39,17 @@ class RouterResponseHandler
         }
 
         if ($replaceArgs !== [] && is_string($message)) {
-            $message = sprintf($message, ...$replaceArgs);
+            try {
+                $message = sprintf($message, ...$replaceArgs);
+            } catch (\Throwable $e) {
+                log_message('warning', sprintf(
+                    'RouterResponseHandler: sprintf gagal untuk "%s": %s',
+                    $message,
+                    $e->getMessage()
+                ));
+                // Biarkan message asli (dengan placeholder)
+                $message = sprintf($message, ...$replaceArgs);
+            }
         }
 
         return [$codeOrMessage, $message];
@@ -148,11 +159,11 @@ class RouterResponseHandler
     private function getDefaultTitle(int $status): string
     {
         return match ($status) {
-            401 => 'Sesi Login Diperlukan',
-            403 => 'Akses Tidak Diizinkan',
-            404 => 'Halaman Tidak Ditemukan',
-            405 => 'Metode Tidak Diizinkan',
-            429 => 'Terlalu Banyak Permintaan',
+            400 => 'Permintaan Tidak Valid',
+            422 => 'Data Tidak Valid',
+            500 => 'Kesalahan Server',
+            502 => 'Gateway Error',
+            503 => 'Layanan Tidak Tersedia',
             default => 'Terjadi Kesalahan',
         };
     }
@@ -248,7 +259,8 @@ class RouterResponseHandler
         }
 
         // Request halaman biasa: arahkan ke halaman login.
-        return redirect()->to(site_url('auth/login'));
+        $loginUrl = site_url(config(AuthPolicy::class)->loginRoute);
+        return redirect()->to($loginUrl);
     }
 
     /**

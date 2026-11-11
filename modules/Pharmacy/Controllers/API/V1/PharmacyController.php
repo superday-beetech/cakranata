@@ -24,7 +24,6 @@ class PharmacyController extends ApiController
      */
     public function index(): ResponseInterface
     {
-        echo 's';
         try {
             [$from, $to] = $this->getDateRange();
 

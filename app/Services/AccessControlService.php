@@ -20,7 +20,17 @@ class AccessControlService
     private array $activeUserCache = [];
     private array $superadminCache = [];
     private array $effectivePermissionsCache = [];
+    private array $directPermissionsCache = [];
+    private array $permissionNameCache = [];
     private AuthPolicy $policy;
+
+    private const CACHE_PROPERTIES = [
+        'activeUserCache',
+        'superadminCache',
+        'effectivePermissionsCache',
+        'permissionNameCache',  // tambah saat ada cache baru
+    ];
+
     public function __construct(
         ?BaseConnection $db = null,
         ?AuthPolicy $policy = null
@@ -49,11 +59,10 @@ class AccessControlService
             ->get()
             ->getRowArray();
 
-        $isActive = $row !== null
-            && ($row['status'] ?? null) !== 'banned';
-        // Aktifkan baris di bawah bila semua akun memang melewati aktivasi Shield.
-        // Akun hasil seeder dengan active=0 akan terkunci jika syarat ini dipasang.
-        // && (int) ($row['active'] ?? 0) === 1;
+        $isActive = $row !== null && ($row['status'] ?? null) !== 'banned';
+        if ($isActive && ENVIRONMENT !== 'development') {
+            $isActive = (int) ($row['active'] ?? 0) === 1;
+        }
 
         return $this->activeUserCache[$userId] = $isActive;
     }
@@ -119,25 +128,13 @@ class AccessControlService
         // Permission yang diperoleh melalui grup.
         $groupRows = $this->db->table('auth_groups_users AS agu')
             ->select('ap.name AS permission')
-            ->join(
-                'auth_groups AS ag',
-                'ag.name = agu.group',
-                'inner'
-            )
-            ->join(
-                'auth_groups_permissions AS agp',
-                'agp.group_id = ag.id',
-                'inner'
-            )
-            ->join(
-                'auth_permissions AS ap',
-                'ap.id = agp.permission_id',
-                'inner'
-            )
+            ->distinct()
+            ->join('auth_groups AS ag', 'ag.name = agu.group', 'inner')
+            ->join('auth_groups_permissions AS agp', 'agp.group_id = ag.id', 'inner')
+            ->join('auth_permissions AS ap', 'ap.id = agp.permission_id', 'inner')
             ->where('agu.user_id', $userId)
             ->get()
             ->getResultArray();
-
         $permissions = [];
 
         foreach (array_merge($directRows, $groupRows) as $row) {
@@ -166,45 +163,33 @@ class AccessControlService
      */
 
 
-    public function hasAllPermissions(
-        int $userId,
-        array $requiredPermissions
-    ): bool {
-        if (
-            $userId <= 0
-            || ! $this->isActiveUser($userId)
-            || $requiredPermissions === []
-        ) {
+    public function hasAllPermissions(int $userId, array $requiredPermissions): bool
+    {
+        if ($userId <= 0 || $requiredPermissions === []) {
             return false;
         }
 
-        // Validasi seluruh permission sebelum bypass superadmin.
+        // Validasi permission input dulu (murah).
         foreach ($requiredPermissions as $permission) {
-            if (
-                ! is_string($permission)
-                || trim($permission) === ''
-            ) {
+            if (! is_string($permission) || trim($permission) === '') {
                 return false;
             }
         }
 
-        // Superadmin melewati grant permission.
+        // isSuperadmin internal sudah cek isActiveUser.
         if ($this->isSuperadmin($userId)) {
             return true;
         }
 
+        // getEffectivePermissions internal sudah cek isActiveUser.
         $effectivePermissions = $this->getEffectivePermissions($userId);
 
         if ($effectivePermissions === []) {
             return false;
         }
 
-        // Semua permission wajib terpenuhi.
         foreach ($requiredPermissions as $permission) {
-            if (! PermissionMatcher::matches(
-                trim($permission),
-                $effectivePermissions
-            )) {
+            if (! PermissionMatcher::matches(trim($permission), $effectivePermissions)) {
                 return false;
             }
         }
@@ -230,32 +215,25 @@ class AccessControlService
     /**
      * Memeriksa permission berdasarkan auth_permissions.id.
      */
-    public function hasPermissionId(
-        int $userId,
-        int $permissionId
-    ): bool {
-        if (
-            $userId <= 0
-            || $permissionId <= 0
-            || ! $this->isActiveUser($userId)
-        ) {
+    public function hasPermissionId(int $userId, int $permissionId): bool
+    {
+        if ($userId <= 0 || $permissionId <= 0 || ! $this->isActiveUser($userId)) {
             return false;
         }
 
-        $row = $this->db->table('auth_permissions')
-            ->select('name')
-            ->where('id', $permissionId)
-            ->get()
-            ->getRowArray();
+        if (! isset($this->permissionNameCache[$permissionId])) {
+            $row = $this->db->table('auth_permissions')
+                ->select('name')
+                ->where('id', $permissionId)
+                ->get()
+                ->getRowArray();
 
-        if ($row === null) {
-            return false;
+            $this->permissionNameCache[$permissionId] = $row ? (string) $row['name'] : null;
         }
 
-        return $this->hasPermission(
-            $userId,
-            (string) $row['name']
-        );
+        $name = $this->permissionNameCache[$permissionId];
+
+        return $name !== null && $this->hasPermission($userId, $name);
     }
 
     /**
@@ -294,58 +272,47 @@ class AccessControlService
      * Memeriksa permission yang diberikan langsung kepada pengguna,
      * tidak termasuk permission yang berasal dari grup.
      */
-    public function hasDirectPermission(
-        int $userId,
-        string $permission
-    ): bool {
+    public function hasDirectPermission(int $userId, string $permission): bool
+    {
         $permission = trim($permission);
-
-        if (
-            $userId <= 0
-            || $permission === ''
-            || ! $this->isActiveUser($userId)
-        ) {
+        if ($userId <= 0 || $permission === '' || ! $this->isActiveUser($userId)) {
             return false;
         }
+        $direct = $this->getDirectPermissions($userId);
+        return $direct !== [] && PermissionMatcher::matches($permission, $direct);
+    }
 
-        $rows = $this->db->table('auth_permissions_users')
-            ->select('permission')
-            ->where('user_id', $userId)
-            ->get()
-            ->getResultArray();
+    private function getDirectPermissions(int $userId): array
+    {
+        if (! isset($this->directPermissionsCache[$userId])) {
+            $rows = $this->db->table('auth_permissions_users')
+                ->select('permission')
+                ->where('user_id', $userId)
+                ->get()
+                ->getResultArray();
 
-        $permissionNames = array_values(array_unique(
-            array_filter(
-                array_map(
-                    static fn(array $row): string =>
-                    trim((string) ($row['permission'] ?? '')),
-                    $rows
-                ),
-                static fn(string $name): bool => $name !== ''
-            )
-        ));
+            $names = [];
+            foreach ($rows as $row) {
+                $name = trim((string) ($row['permission'] ?? ''));
+                if ($name !== '') {
+                    $names[$name] = $name;
+                }
+            }
 
-        return $permissionNames !== []
-            && PermissionMatcher::matches(
-                $permission,
-                $permissionNames
-            );
+            $this->directPermissionsCache[$userId] = array_values($names);
+        }
+
+        return $this->directPermissionsCache[$userId];
     }
 
     public function clearCache(?int $userId = null): void
     {
-        if ($userId === null) {
-            $this->activeUserCache = [];
-            $this->superadminCache = [];
-            $this->effectivePermissionsCache = [];
-
-            return;
+        foreach (self::CACHE_PROPERTIES as $prop) {
+            if ($userId === null) {
+                $this->{$prop} = [];
+            } else {
+                unset($this->{$prop}[$userId]);
+            }
         }
-
-        unset(
-            $this->activeUserCache[$userId],
-            $this->superadminCache[$userId],
-            $this->effectivePermissionsCache[$userId]
-        );
     }
 }

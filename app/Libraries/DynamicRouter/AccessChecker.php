@@ -173,15 +173,17 @@ class AccessChecker
             );
         }
         $userId = (int) ($user->id ?? 0);
-
-        /* if ($userId <= 0) {
+        if ($userId <= 0) {
+            log_message('error', 'AccessChecker: authenticated user dengan ID invalid.', [
+                'endpoint' => $endpoint,
+            ]);
             return $this->decision(
                 false,
                 'invalid_user',
                 'Akun tidak dapat diverifikasi. Silakan masuk kembali.',
                 401
             );
-        } */
+        }
 
         // 7. Validasi akun dan bypass group.
         try {
@@ -218,12 +220,13 @@ class AccessChecker
         // 8. Bypass group hanya melewati grant permission.
         // Tidak melewati status akun, route, atau HTTP verb.
         if ($isBypassGroup) {
-            return $this->decision(
-                true,
-                'bypass_group',
-                'Akses diizinkan.',
-                200
-            );
+            // Batasi bypass ke GET/HEAD (read-only) untuk mengurangi risiko.
+            if (! in_array($httpVerb, ['GET', 'HEAD'], true)) {
+                log_message('info', "AccessChecker: bypass group diblokir untuk {$httpVerb} {$endpoint}");
+                // Lanjut ke pengecekan permission normal
+            } else {
+                return $this->decision(true, 'bypass_group', 'Akses diizinkan.', 200);
+            }
         }
 
         // 9. Permission override.

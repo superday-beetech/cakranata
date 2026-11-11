@@ -12,7 +12,10 @@ declare(strict_types=1);
  *  - Urutan file deterministik (sort).
  *  - Hanya turunan CodeIgniter\Controller; bukan DynamicRouterBase.
  *  - Method bawaan Controller (initController, forceHTTPS, cachePage, ...) tidak jadi endpoint.
- *  - Isi cache divalidasi (bentuk + namespace) sebelum dipakai.
+ *  - Isi cache divalidasi (bentuk + namespace + jumlah method per controller) sebelum dipakai.
+ *  - methodCount disimpan di cache untuk mendeteksi cache basi.
+ *  - Cache key menyertakan ENVIRONMENT agar dev/prod tidak tercampur.
+ *  - Exception pada settings/config di-log (tidak silent).
  */
 
 namespace App\Libraries\DynamicRouter;
@@ -30,12 +33,56 @@ class ControllerScanner
 {
     private const NAME_PATTERN = '/^[A-Za-z][A-Za-z0-9_]*$/';
 
+    /**
+     * Method dari CodeIgniter\Controller yang tidak boleh jadi endpoint,
+     * meskipun di-override di subclass. Ditambah daftar eksplisit
+     * (bukan method_exists) agar controller yang meng-override method
+     * tertentu tetap bisa di-route jika memang diinginkan.
+     *
+     * @var list<string>
+     */
+    private const EXCLUDED_METHODS = [
+        'initController',
+        'forceHTTPS',
+        'cachePage',
+        'validate',
+        'render',
+        'renderSection',
+        'renderSectionRecursive',
+        'getResponse',
+        'getRequest',
+        'getLogger',
+        'helpers',
+    ];
+
+    /**
+     * Class yang tidak boleh di-scan menjadi controller.
+     * Ditambahkan agar tidak perlu hard-code getShortName() di isEligible().
+     *
+     * @var list<class-string>
+     */
+    private const EXCLUDED_CLASSES = [
+        DynamicRouterBase::class,
+        // Tambahkan class lain di sini jika ada (mis. DynamicRouter).
+    ];
+
+    private bool $useCache;
+    private int $cacheTtl;
+
     public function __construct(
         private string $moduleFolder,
         private string $moduleNamespace,
-        private bool $useCache = true,
-        private int $cacheTtl = 86400,
-    ) {}
+        ?bool $useCache = null,
+        int $cacheTtl = 86400,
+    ) {
+        // Default: cache aktif hanya di production. Di dev/test, selalu scan ulang.
+        $this->useCache = $useCache ?? (ENVIRONMENT === 'production');
+        $this->cacheTtl = $cacheTtl;
+    }
+
+    // ============================================================
+    // Public API
+    // ============================================================
 
     public function scan(): array
     {
@@ -70,6 +117,37 @@ class ControllerScanner
         return cache()->delete($this->getCacheKey());
     }
 
+    /**
+     * Normalisasi nama controller untuk keperluan lookup dari URL.
+     * Contoh: "user-profile" / "user_profile" / "User-Profile" -> "UserProfile".
+     *
+     * Catatan: fungsi ini TIDAK mengembalikan nama class asli untuk akronim.
+     * Mis. "api-key" -> "ApiKey" (bukan "APIKey"). Jika butuh nama class
+     * asli, gunakan $this->controllerClasses (via scanner) — bukan fungsi ini.
+     */
+    public function normalizeControllerName(string $controller): string
+    {
+        $controller = trim($controller);
+        if ($controller === '') {
+            return '';
+        }
+
+        // Jika sudah mengandung huruf besar tanpa separator, anggap sudah PascalCase.
+        if (
+            preg_match('/[A-Z]/', $controller)
+            && ! str_contains($controller, '-')
+            && ! str_contains($controller, '_')
+        ) {
+            return $controller;
+        }
+
+        $controller = str_replace(['-', '_'], ' ', $controller);
+
+        return str_replace(' ', '', ucwords($controller));
+    }
+
+    // ============================================================
+    // Scan
     // ============================================================
 
     private function scanDirectory(): array
@@ -78,6 +156,7 @@ class ControllerScanner
             'allowedControllers' => [],
             'discoveredMethods'  => [],
             'controllerClasses'  => [],
+            'methodCount'        => [],
         ];
 
         $folder        = trim($this->moduleFolder, '/\\');
@@ -93,6 +172,8 @@ class ControllerScanner
         );
 
         if ($controllerPath === false) {
+            log_message('debug', "ControllerScanner: folder Controllers tidak ditemukan untuk modul '{$folder}'.");
+
             return $empty;
         }
 
@@ -158,9 +239,12 @@ class ControllerScanner
 
         ksort($classes, SORT_STRING);
 
-        $methods = [];
+        $methods     = [];
+        $methodCount = [];
 
         foreach (array_keys($classes) as $short) {
+            $methodCount[$short] = count($methodsMap[$short]);
+
             foreach ($methodsMap[$short] as $method) {
                 $methods[] = $short . '::' . $method;
             }
@@ -170,6 +254,7 @@ class ControllerScanner
             'allowedControllers' => array_keys($classes),
             'discoveredMethods'  => $methods,
             'controllerClasses'  => $classes,
+            'methodCount'        => $methodCount,
         ];
     }
 
@@ -210,10 +295,22 @@ class ControllerScanner
 
     private function isEligible(ReflectionClass $reflection): bool
     {
-        return $reflection->isInstantiable()
-            && $reflection->isSubclassOf(Controller::class)
-            && ! $reflection->isSubclassOf(DynamicRouterBase::class)
-            && $reflection->getShortName() !== 'DynamicRouter';
+        if (! $reflection->isInstantiable()) {
+            return false;
+        }
+
+        if (! $reflection->isSubclassOf(Controller::class)) {
+            return false;
+        }
+
+        // Buang class yang secara eksplisit dikecualikan (termasuk DynamicRouterBase).
+        foreach (self::EXCLUDED_CLASSES as $excluded) {
+            if ($reflection->getName() === $excluded || $reflection->isSubclassOf($excluded)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
@@ -233,7 +330,7 @@ class ControllerScanner
                 || $method->isAbstract()
                 || str_starts_with($name, '_')
                 || preg_match(self::NAME_PATTERN, $name) !== 1
-                || method_exists(Controller::class, $name) // initController, forceHTTPS, cachePage, ...
+                || in_array($name, self::EXCLUDED_METHODS, true)
             ) {
                 continue;
             }
@@ -243,8 +340,12 @@ class ControllerScanner
 
         sort($names, SORT_STRING);
 
-        return $names;
+        return array_values(array_unique($names));
     }
+
+    // ============================================================
+    // Cache
+    // ============================================================
 
     private function isValidShape(mixed $data): bool
     {
@@ -252,7 +353,8 @@ class ControllerScanner
             return false;
         }
 
-        foreach (['allowedControllers', 'discoveredMethods', 'controllerClasses'] as $key) {
+        // Wajib ada 4 key, semuanya array.
+        foreach (['allowedControllers', 'discoveredMethods', 'controllerClasses', 'methodCount'] as $key) {
             if (! isset($data[$key]) || ! is_array($data[$key])) {
                 return false;
             }
@@ -260,6 +362,7 @@ class ControllerScanner
 
         $prefix = trim($this->moduleNamespace, '\\') . '\\';
 
+        // 1. Validasi controllerClasses: short name & namespace prefix.
         foreach ($data['controllerClasses'] as $short => $class) {
             if (
                 ! is_string($short) || ! is_string($class)
@@ -269,6 +372,9 @@ class ControllerScanner
                 return false;
             }
         }
+
+        // 2. Validasi discoveredMethods: format 'Controller::method' & controller ada.
+        $actualCount = [];
 
         foreach ($data['discoveredMethods'] as $endpoint) {
             if (! is_string($endpoint)) {
@@ -280,10 +386,33 @@ class ControllerScanner
             if (count($parts) !== 2 || ! isset($data['controllerClasses'][$parts[0]])) {
                 return false;
             }
+
+            $actualCount[$parts[0]] = ($actualCount[$parts[0]] ?? 0) + 1;
         }
 
+        // 3. Validasi allowedControllers: setiap entry ada di controllerClasses.
         foreach ($data['allowedControllers'] as $controller) {
             if (! is_string($controller) || ! isset($data['controllerClasses'][$controller])) {
+                return false;
+            }
+        }
+
+        // 4. Validasi silang: methodCount harus cocok dengan jumlah method aktual.
+        //    Ini mendeteksi cache basi (mis. file controller diedit tanpa clear cache).
+        foreach ($data['allowedControllers'] as $controller) {
+            if (($data['methodCount'][$controller] ?? -1) !== ($actualCount[$controller] ?? 0)) {
+                log_message('warning', "ControllerScanner: cache invalid — methodCount mismatch untuk '{$controller}'.");
+
+                return false;
+            }
+        }
+
+        // 5. Validasi silang: setiap controller di allowedControllers harus punya minimal 1 method.
+        //    Controller tanpa method publik = tidak berguna, kemungkinan cache basi.
+        foreach ($data['allowedControllers'] as $controller) {
+            if (($actualCount[$controller] ?? 0) < 1) {
+                log_message('warning', "ControllerScanner: cache invalid — controller '{$controller}' tanpa method.");
+
                 return false;
             }
         }
@@ -293,7 +422,11 @@ class ControllerScanner
 
     private function getCacheKey(): string
     {
-        return 'dynamic_router_scan_' . md5($this->moduleFolder . '|' . $this->moduleNamespace);
+        return 'dynamic_router_scan_' . md5(
+            $this->moduleFolder
+                . '|' . $this->moduleNamespace
+                . '|' . ENVIRONMENT
+        );
     }
 
     private function isCacheEnabled(): bool
@@ -304,8 +437,8 @@ class ControllerScanner
             if ($value !== null) {
                 return filter_var($value, FILTER_VALIDATE_BOOLEAN);
             }
-        } catch (Throwable) {
-            // Settings tidak tersedia, lanjut ke config.
+        } catch (Throwable $e) {
+            log_message('debug', 'ControllerScanner: settings tidak tersedia — ' . $e->getMessage());
         }
 
         try {
@@ -314,8 +447,8 @@ class ControllerScanner
             if (isset($config->cacheDynamic)) {
                 return (bool) $config->cacheDynamic;
             }
-        } catch (Throwable) {
-            // Config tidak tersedia.
+        } catch (Throwable $e) {
+            log_message('debug', 'ControllerScanner: config App tidak tersedia — ' . $e->getMessage());
         }
 
         return false;

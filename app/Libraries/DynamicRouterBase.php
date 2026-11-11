@@ -107,6 +107,8 @@ abstract class DynamicRouterBase extends Controller
     {
         parent::initController($request, $response, $logger);
 
+        $this->logger = $logger;
+
         // 1. Muat konfigurasi sebelum helper dibuat.
         $this->loadRouterConfig();
         $this->authPolicy = config(AuthPolicy::class);
@@ -155,6 +157,11 @@ abstract class DynamicRouterBase extends Controller
         $this->configureResponseHandlers();
     }
 
+    public function getRouterConfig(): array
+    {
+        return $this->routerConfig;
+    }
+
     protected function scanControllersAndMethods(): void
     {
         $this->applyScanResult($this->controllerScanner->scan());
@@ -172,8 +179,21 @@ abstract class DynamicRouterBase extends Controller
         $this->controllerClasses  = $result['controllerClasses'];
     }
 
-    public function route($seg1 = '', $seg2 = null, ...$params)
+    public function route(string $seg1 = '', ?string $seg2 = null, mixed ...$params): mixed
     {
+
+        $path = trim($this->request->getUri()->getPath(), '/');
+        $policy = $this->authPolicy;
+
+        if (strlen($path) > $policy->maxPathLength) {
+            $this->rejectAsNotFound('path_policy', 'PATH_TOO_LONG', ['length' => strlen($path)]);
+        }
+
+        $segments = $path === '' ? [] : explode('/', $path);
+        if (count($segments) > $policy->maxSegments) {
+            $this->rejectAsNotFound('path_policy', 'TOO_MANY_SEGMENTS', ['count' => count($segments)]);
+        }
+
         if (! $this->enabled && ! $this->isSuperadmin()) {
             throw PageNotFoundException::forPageNotFound();
         }
@@ -181,10 +201,9 @@ abstract class DynamicRouterBase extends Controller
         [$controller, $method, $params] = $this->resolveControllerAndMethod($seg1, $seg2, $params);
         // $method = $this->resolveEffectiveMethod($controller, $method);
 
-        /* if (! in_array($controller, $this->allowedControllers, true)) {
+        if (! in_array($controller, $this->allowedControllers, true)) {
             $this->rejectAsNotFound('controller_policy', 'CONTROLLER_NOT_ALLOWED', ['controller' => $controller]);
-        } */
-        /*
+        }
         $methodDecision = $this->methodPolicy->diagnoseMethod($controller, $method);
 
         if (! $methodDecision['allowed']) {
@@ -244,7 +263,7 @@ abstract class DynamicRouterBase extends Controller
             if ($override instanceof ResponseInterface) {
                 return $override;
             }
-        } */
+        }
 
         $result = $this->runController($controller, $method, $params);
 
@@ -340,6 +359,9 @@ abstract class DynamicRouterBase extends Controller
 
     protected function handleTooManyRequests(string $endpoint)
     {
+        if (! is_callable($this->fallbackHandler)) {
+            throw new RuntimeException('fallbackHandler belum dikonfigurasi. Panggil configureResponseHandlers() dulu.');
+        }
         $minutes = (int) ($this->rateLimits[$endpoint]['minutes'] ?? 1);
 
         $this->response->setHeader('Retry-After', (string) (max(1, $minutes) * 60));
@@ -351,14 +373,42 @@ abstract class DynamicRouterBase extends Controller
         );
     }
 
+    /**
+     * Pastikan semua komponen sudah diinisialisasi sebelum route() dipanggil.
+     * Mencegah null-reference error yang sulit dilacak.
+     */
+    protected function assertRouterInitialized(): void
+    {
+        foreach (
+            [
+                'authPolicy'             => $this->authPolicy ?? null,
+                'controllerScanner'      => $this->controllerScanner ?? null,
+                'methodPolicy'           => $this->methodPolicy ?? null,
+                'routeResolver'          => $this->routeResolver ?? null,
+                'authenticationResolver' => $this->authenticationResolver ?? null,
+                'accessChecker'          => $this->accessChecker ?? null,
+                'httpVerbPolicy'         => $this->httpVerbPolicy ?? null,
+                'rateLimiter'            => $this->rateLimiter ?? null,
+                'routerResponseHandler'  => $this->routerResponseHandler ?? null,
+                'logger'                 => $this->logger ?? null,
+            ] as $name => $value
+        ) {
+            if ($value === null) {
+                throw new RuntimeException(
+                    "DynamicRouterBase: komponen '{$name}' belum diinisialisasi. Pastikan initController() dipanggil framework."
+                );
+            }
+        }
+    }
+
     protected function isSuperadmin(): bool
     {
         return $this->accessChecker->isSuperadmin();
     }
 
-    protected function normalizeMethodName(string $method, string $controller): string
+    protected function normalizeMethodName(string $method): string
     {
-        return $this->methodPolicy->normalizeMethodName($method, $controller);
+        return $this->methodPolicy->normalizeMethodName($method);
     }
 
     protected function resolveDiscoveredMethod(string $controller, string $requestedMethod): ?string
@@ -371,16 +421,16 @@ abstract class DynamicRouterBase extends Controller
         return $this->methodPolicy->isMethodAllowed($controller, $method);
     }
 
-    protected function resolveControllerAndMethod($seg1, $seg2, array &$params): array
+    public function resolveControllerAndMethod(string $seg1 = '', ?string $seg2 = null, array $params = []): array
     {
         return $this->routeResolver->resolveControllerAndMethod($seg1, $seg2, $params);
     }
 
-    protected function resolveEffectiveMethod(string $controller, string $method): string
+    /* protected function resolveEffectiveMethod(string $controller = '', string $method = ''): string
     {
-        return $this->routeResolver->resolveEffectiveMethod($controller, $method);
+        return $this->routeResolver->resolveControllerAndMethod($controller, $method);
     }
-
+ */
     protected function resolveMethodByVerb(string $controller, string $requestedMethod): ?string
     {
         return $this->routeResolver->resolveMethodByVerb($controller, $requestedMethod);
@@ -388,12 +438,12 @@ abstract class DynamicRouterBase extends Controller
 
     protected function normalizeControllerName(string $controller): string
     {
-        return $this->routeResolver->normalizeControllerName($controller);
+        return $this->controllerScanner->normalizeControllerName($controller);
     }
 
     protected function isAjax(): bool
     {
-        return $this->routeResolver->isAjax();
+        return $this->request->isAJAX();
     }
 
     protected function isApiRequest(): bool
@@ -451,7 +501,14 @@ abstract class DynamicRouterBase extends Controller
 
             return $notFound();
         }
+        if (! $this->isMethodAllowed($controller, $method)) {
+            $this->logRejection('run_controller', 'METHOD_NOT_ALLOWED', [
+                'controller' => $controller,
+                'method'     => $method,
+            ]);
 
+            return $notFound();
+        }
         try {
             $reflection = new ReflectionMethod($className, $method);
         } catch (ReflectionException) {
@@ -581,11 +638,14 @@ abstract class DynamicRouterBase extends Controller
     protected function getErrorTitle(int $status): string
     {
         return match ($status) {
+            400     => 'Permintaan Tidak Valid',
             401     => 'Autentikasi Diperlukan',
             403     => 'Akses Ditolak',
             404     => 'Halaman Tidak Ditemukan',
             405     => 'Metode Tidak Diizinkan',
             429     => 'Terlalu Banyak Permintaan',
+            500     => 'Kesalahan Internal Server',
+            503     => 'Layanan Tidak Tersedia',
             default => 'Terjadi Kesalahan',
         };
     }
@@ -749,15 +809,13 @@ abstract class DynamicRouterBase extends Controller
      */
     protected function validateAgainstShield(array $config, string $configFile): void
     {
-        if (ENVIRONMENT === 'production') {
-            return;
-        }
-
         $authGroups = config('AuthGroups');
 
         if ($authGroups === null) {
             return;
         }
+
+        $isProduction = ENVIRONMENT === 'production';
 
         $knownPermissions = array_keys($authGroups->permissions ?? []);
         $knownGroups      = array_keys($authGroups->groups ?? []);
@@ -765,8 +823,9 @@ abstract class DynamicRouterBase extends Controller
         foreach ($config['requiredPermissions'] ?? [] as $endpoint => $permissions) {
             foreach ($permissions as $permission) {
                 if (! in_array($permission, $knownPermissions, true)) {
-                    throw new RuntimeException(
-                        "Permission '{$permission}' pada {$endpoint} tidak ada di AuthGroups::\$permissions: {$configFile}"
+                    $this->handleShieldMismatch(
+                        "Permission '{$permission}' pada {$endpoint} tidak ada di AuthGroups::\$permissions: {$configFile}",
+                        $isProduction
                     );
                 }
             }
@@ -775,12 +834,28 @@ abstract class DynamicRouterBase extends Controller
         foreach ($config['requiredRoles'] ?? [] as $endpoint => $roles) {
             foreach ($roles as $role) {
                 if (! in_array($role, $knownGroups, true)) {
-                    throw new RuntimeException(
-                        "Role '{$role}' pada {$endpoint} tidak ada di AuthGroups::\$groups: {$configFile}"
+                    $this->handleShieldMismatch(
+                        "Role '{$role}' pada {$endpoint} tidak ada di AuthGroups::\$groups: {$configFile}",
+                        $isProduction
                     );
                 }
             }
         }
+    }
+
+    /**
+     * Di production: log warning (tidak throw agar app tetap jalan).
+     * Di luar production: throw agar typo ketahuan di CI/test.
+     */
+    private function handleShieldMismatch(string $message, bool $isProduction): void
+    {
+        if ($isProduction) {
+            log_message('warning', 'DynamicRouter config mismatch: ' . $message);
+
+            return;
+        }
+
+        throw new RuntimeException($message);
     }
 
     protected function getRouterConfigPath(): string

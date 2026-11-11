@@ -14,7 +14,7 @@ class ApiRouter extends DynamicRouterBase
 
     protected string $defaultController = 'RouteRegistryController';
 
-    public function route($seg1 = '', $seg2 = null, ...$params)
+    /*  public function route($seg1 = '', $seg2 = null, ...$params)
     {
         // Jika $seg2 langsung berupa angka (ID, contoh: "15") tanpa ada nama method di depannya,
         // arahkan otomatis ke method "getVerbs" dan jadikan $seg2 sebagai parameter.
@@ -33,5 +33,5 @@ class ApiRouter extends DynamicRouterBase
 
         // Teruskan ke router induk
         return parent::route($seg1, $seg2, ...$params);
-    }
+    } */
 }
