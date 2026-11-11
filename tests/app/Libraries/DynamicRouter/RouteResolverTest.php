@@ -66,9 +66,6 @@ final class RouteResolverTest extends CIUnitTestCase
     {
         $resolver = $this->resolver('POST', ['ProductController::approveAction']);
 
-        $params = [];
-        $result = $resolver->resolveControllerAndMethod('product', '42', $params);
-
         $params = ['approve'];
         $result = $resolver->resolveControllerAndMethod('product', '42', $params);
 
@@ -78,9 +75,6 @@ final class RouteResolverTest extends CIUnitTestCase
     public function testCustomActionSupportsActionBeforeIdentifier(): void
     {
         $resolver = $this->resolver('POST', ['ProductController::approveAction']);
-
-        $params = [];
-        $result = $resolver->resolveControllerAndMethod('product', 'approve', $params);
 
         $params = ['42'];
         $result = $resolver->resolveControllerAndMethod('product', 'approve', $params);
