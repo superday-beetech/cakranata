@@ -1,0 +1,1 @@
+import{n as e}from"./rolldown-runtime-4tVxZq34.js";import{Ct as t,O as n,g as r,s as i,u as a}from"./runtime-core.esm-bundler-eCuLVqj1.js";var o=r({__name:`UserDetail`,props:{userId:{}},setup(e){return(r,o)=>(n(),a(`div`,null,[o[0]||=i(`h6`,null,`Detail Pengguna`,-1),i(`p`,null,`User ID: `+t(e.userId),1)]))}}),s=e({default:()=>c}),c=o;export{s as n,c as t};

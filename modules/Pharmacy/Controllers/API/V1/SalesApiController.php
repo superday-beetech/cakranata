@@ -29,6 +29,8 @@ class SalesApiController extends ApiController
      */
     public function index()
     {
+
+
         try {
             $result = $this->salesService->getSales([
                 'page'     => $this->request->getGet('page'),
@@ -140,6 +142,49 @@ class SalesApiController extends ApiController
     }
 
     /**
+     * POST /api/v1/pharmacy/sales-api/checkout
+     * Body: field CreateSalePayload + objek "payment".
+     */
+    public function checkout()
+    {
+        $userId = (int) auth()->id();
+
+        if ($userId < 1) {
+            return $this->errorResponse('User tidak terautentikasi.', 401);
+        }
+
+        try {
+            $data = $this->request->getJSON(true);
+        } catch (Throwable) {
+            $data = null;
+        }
+
+        if (!is_array($data) || !is_array($data['payment'] ?? null)) {
+            return $this->errorResponse('Format request tidak valid.', 400);
+        }
+
+        try {
+            $saleId = $this->salesService->checkout(
+                $data,
+                $this->paymentFromRequest($data['payment']),
+                $userId
+            );
+
+            return $this->successResponse(
+                $this->salesService->getSaleDetail($saleId),
+                'Penjualan berhasil diselesaikan.',
+                201
+            );
+        } catch (InvalidArgumentException | RuntimeException $e) {
+            return $this->errorResponse($e->getMessage(), 422);
+        } catch (Throwable $e) {
+            log_message('error', '[SalesApiController::checkout] ' . $e->getMessage());
+
+            return $this->errorResponse('Terjadi kesalahan saat menyelesaikan penjualan.', 500);
+        }
+    }
+
+    /**
      * POST /api/v1/pharmacy/sales-api/{id}/post
      */
     public function post(int $id)
@@ -172,16 +217,7 @@ class SalesApiController extends ApiController
         try {
             $this->salesService->postSale(
                 $id,
-                [
-                    'settlement_mode'   => $data['settlement_mode'] ?? 'paid',
-                    'amount'            => $data['applied_amount'] ?? $data['amount'] ?? 0,
-                    'amount_received'   => $data['amount_received'] ?? 0,
-                    'change_amount'     => $data['change_amount'] ?? 0,
-                    'payment_method'    => $data['payment_method'] ?? null,
-                    'reference_number'  => $data['reference_number'] ?? null,
-                    'due_date'          => $data['due_date'] ?? null,
-                    'payment_confirmed' => $data['payment_confirmed'] ?? false,
-                ],
+                $this->paymentFromRequest($data),
                 $userId
             );
 
@@ -251,7 +287,7 @@ class SalesApiController extends ApiController
     }
 
     /**
-     * POST /api/v1/pharmacy/sales-api/{id}/resume
+     * POST /api/v1/pharmacy/sales-api/resume/{id}
      */
     public function resume(int $id)
     {
@@ -266,7 +302,7 @@ class SalesApiController extends ApiController
 
         if ($id < 1) {
             return $this->errorResponse(
-                'ID penjualan tidak valid.',
+                'ID penjualan tidak valid!.',
                 400
             );
         }
@@ -333,5 +369,32 @@ class SalesApiController extends ApiController
                 500
             );
         }
+    }
+
+    private function getRequestData(): ?array
+    {
+        try {
+            $data = $this->request->getJSON(true);
+            return is_array($data) ? $data : null;
+        } catch (Throwable) {
+            return null;
+        }
+    }
+
+    private function paymentFromRequest(array $data): array
+    {
+        return [
+            'settlement_mode'   => $data['settlement_mode'] ?? 'paid',
+            'amount'            => $data['applied_amount'] ?? $data['amount'] ?? 0,
+            'amount_received'   => $data['amount_received'] ?? 0,
+            'change_amount'     => $data['change_amount'] ?? 0,
+            'payment_method'    => $data['payment_method'] ?? null,
+            'reference_number'  => $data['reference_number'] ?? null,
+            'due_date'          => $data['due_date'] ?? null,
+            'payment_confirmed' => $data['payment_confirmed'] ?? false,
+            'buyer_name'        => $data['buyer_name'] ?? null,
+            'buyer_phone'       => $data['buyer_phone'] ?? null,
+            'collateral_note'   => $data['collateral_note'] ?? null,
+        ];
     }
 }

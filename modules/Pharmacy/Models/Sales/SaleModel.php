@@ -30,6 +30,7 @@ class SaleModel extends PharmacyModel
         'payment_method',
         'reference_number',
         'due_date',
+        'collateral_note',
         'notes',
         'created_by',
         'updated_by',

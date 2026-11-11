@@ -1,0 +1,1 @@
+import{O as e,u as t}from"./runtime-core.esm-bundler-eCuLVqj1.js";import{t as n}from"./_plugin-vue_export-helper-BDNMzG2s.js";var r={},i={class:`p-3 text-muted`};function a(n,r){return e(),t(`div`,i,`Segera hadir.`)}var o=n(r,[[`render`,a]]);export{o as default};

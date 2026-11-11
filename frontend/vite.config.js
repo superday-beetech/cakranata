@@ -6,8 +6,6 @@ import { fileURLToPath, URL } from "node:url";
 
 const __dirname = import.meta.dirname;
 
-// import { env } from "@/config/env";
-
 export default defineConfig({
   base: "/acn/",
 
@@ -24,51 +22,41 @@ export default defineConfig({
 
   resolve: {
     alias: {
-      "@": fileURLToPath(new URL("./src", import.meta.url)),
-      "@api": fileURLToPath(new URL("./src/api", import.meta.url)),
-      "@assets": fileURLToPath(new URL("./src/assets", import.meta.url)),
-      "@router": fileURLToPath(new URL("./src/router", import.meta.url)),
-      "@components": fileURLToPath(new URL("./src/components", import.meta.url)),
-      "@composables": fileURLToPath(new URL("./src/composables", import.meta.url)),
-      "@modules": fileURLToPath(new URL("./src/modules", import.meta.url)),
-      "@layouts": fileURLToPath(new URL("./src/layouts", import.meta.url)),
-      "@stores": fileURLToPath(new URL("./src/stores", import.meta.url)),
-      "@utils": fileURLToPath(new URL("./src/utils", import.meta.url)),
-      "@types": fileURLToPath(new URL("./src/types", import.meta.url)),
+      "@": path.resolve(__dirname, "./src"),
+      "@api": path.resolve(__dirname, "./src/api"),
+      "@assets": path.resolve(__dirname, "./src/assets"),
+      "@router": path.resolve(__dirname, "./src/router"),
+      "@components": path.resolve(__dirname, "./src/components"),
+      "@composables": path.resolve(__dirname, "./src/composables"),
+      "@modules": path.resolve(__dirname, "./src/modules"),
+      "@layouts": path.resolve(__dirname, "./src/layouts"),
+      "@stores": path.resolve(__dirname, "./src/stores"),
+      "@utils": path.resolve(__dirname, "./src/utils"),
+      "@types": path.resolve(__dirname, "./src/types"),
     },
   },
 
   server: {
-    host: "localhost",
+    host: "127.0.0.1",
     port: 5173,
     strictPort: true,
 
+    origin: "http://127.0.0.1:5173",
+
     cors: {
-      origin: "http://cakra.test",
+      origin: ["http://cakra.test", "http://127.0.0.1:5173"],
+      credentials: true,
     },
 
     hmr: {
-      host: "localhost",
+      host: "127.0.0.1",
+      protocol: "ws",
     },
 
-    watch: {
-      usePolling: true,
-      interval: 500,
+    fs: {
+      strict: false,
+      allow: [".."],
     },
-    // open: true,
-
-    /*
-        proxy: {
-            "/api": {
-                target: "http://localhost:8080",
-                changeOrigin: true,
-            },
-            "/themes": {
-                target: "http://localhost:8080",
-                changeOrigin: true,
-            },
-        },
-        */
   },
 
   build: {
@@ -77,7 +65,6 @@ export default defineConfig({
     manifest: true,
 
     rollupOptions: {
-      // input: path.dirname(__dirname, "src/main.ts"),
       input: path.resolve(__dirname, "src/main.ts"),
     },
   },

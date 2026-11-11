@@ -21,10 +21,12 @@ class AccessControlService
     private array $superadminCache = [];
     private array $effectivePermissionsCache = [];
     private AuthPolicy $policy;
-    public function __construct(?BaseConnection $db = null)
-    {
+    public function __construct(
+        ?BaseConnection $db = null,
+        ?AuthPolicy $policy = null
+    ) {
         $this->db = $db ?? Database::connect();
-        $this->policy = config(AuthPolicy::class);
+        $this->policy = $policy ?? config(AuthPolicy::class);
     }
 
     /**

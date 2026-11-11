@@ -112,28 +112,31 @@ class FinanceService
      *
      * distribution_order_id boleh null untuk pembayaran umum pelanggan.
      */
-    public function createCustomerPayment(
-        array $data,
-        int $userId
-    ): int {
+    public function createCustomerPayment(array $data, int $userId): int
+    {
         $this->validatePaymentData($data);
+
+        $customerId = (int) ($data['customer_id'] ?? 0);
+        $orderId    = !empty($data['distribution_order_id']) ? (int) $data['distribution_order_id'] : null;
+        $saleId     = !empty($data['sale_id']) ? (int) $data['sale_id'] : null;
+
+        if ($customerId < 1) {
+            throw new RuntimeException('Pelanggan wajib ditentukan.');
+        }
+
+        if ($orderId !== null && $saleId !== null) {
+            throw new RuntimeException('Pembayaran hanya boleh mengacu ke satu dokumen.');
+        }
 
         $this->db->transBegin();
 
         try {
-            $customerId = (int) $data['customer_id'];
-            $orderId = !empty($data['distribution_order_id'])
-                ? (int) $data['distribution_order_id']
-                : null;
-
-            $customer = $this->db->table('customers')
-                ->where('id', $customerId)
-                ->get()
-                ->getRowArray();
-
+            $customer = $this->db->table('customers')->where('id', $customerId)->get()->getRowArray();
             if (!$customer) {
                 throw new RuntimeException('Pelanggan tidak ditemukan.');
             }
+
+            $amount = round((float) $data['amount'], 2);
 
             if ($orderId !== null) {
                 $order = $this->db->query(
@@ -144,11 +147,11 @@ class FinanceService
                 if (!$order) {
                     throw new RuntimeException('Pesanan distribusi tidak ditemukan.');
                 }
-
                 if ((int) $order['customer_id'] !== $customerId) {
-                    throw new RuntimeException(
-                        'Pelanggan tidak sesuai dengan pesanan distribusi.'
-                    );
+                    throw new RuntimeException('Pelanggan tidak sesuai dengan pesanan distribusi.');
+                }
+                if ($order['status'] === 'cancelled') {
+                    throw new RuntimeException('Pesanan sudah dibatalkan.');
                 }
 
                 $this->validateOutstanding(
@@ -156,36 +159,68 @@ class FinanceService
                     'distribution_order_id',
                     $orderId,
                     (float) $order['total_amount'],
-                    (float) $data['amount']
+                    $amount
                 );
             }
 
-            $this->db->table('customer_payments')->insert([
-                'payment_number' => $data['payment_number'],
-                'customer_id' => $customerId,
-                'distribution_order_id' => $orderId,
-                'payment_date' => $data['payment_date'],
-                'amount' => (float) $data['amount'],
-                'payment_method' => $data['payment_method'],
-                'reference_number' => $data['reference_number'] ?? null,
-                'notes' => $data['notes'] ?? null,
-                'created_by' => $userId,
-            ]);
+            if ($saleId !== null) {
+                $sale = $this->db->query(
+                    'SELECT * FROM sales WHERE id = ? FOR UPDATE',
+                    [$saleId]
+                )->getRowArray();
 
+                if (!$sale || $sale['status'] !== 'posted') {
+                    throw new RuntimeException('Penjualan tidak ditemukan atau belum diposting.');
+                }
+                if ((int) $sale['customer_id'] !== $customerId) {
+                    throw new RuntimeException('Pelanggan tidak sesuai dengan penjualan.');
+                }
+
+                // paid_amount di sales = pembayaran saat POS + pelunasan susulan.
+                $outstanding = round((float) $sale['total_amount'] - (float) $sale['paid_amount'], 2);
+
+                if ($outstanding <= 0) {
+                    throw new RuntimeException('Penjualan sudah lunas.');
+                }
+                if ($amount > $outstanding + 0.0001) {
+                    throw new RuntimeException('Pembayaran melebihi sisa piutang. Sisa: ' . $outstanding);
+                }
+            }
+
+            $this->db->table('customer_payments')->insert([
+                'payment_number'        => $data['payment_number'],
+                'customer_id'           => $customerId,
+                'sale_id'               => $saleId,
+                'distribution_order_id' => $orderId,
+                'payment_date'          => $data['payment_date'],
+                'amount'                => $amount,
+                'payment_method'        => $data['payment_method'],
+                'reference_number'      => $data['reference_number'] ?? null,
+                'notes'                 => $data['notes'] ?? null,
+                'created_by'            => $userId,
+            ]);
             $paymentId = (int) $this->db->insertID();
 
+            if ($saleId !== null) {
+                $newPaid = round((float) $sale['paid_amount'] + $amount, 2);
+                $this->db->table('sales')->where('id', $saleId)->update([
+                    'paid_amount'    => $newPaid,
+                    'payment_status' => $newPaid + 0.0001 >= (float) $sale['total_amount'] ? 'paid' : 'partial',
+                    'updated_by'     => $userId,
+                    'updated_at'     => date('Y-m-d H:i:s'),
+                ]);
+            }
+
             $this->createCashTransaction([
-                'transaction_number' => $this->makeCashTransactionNumber(
-                    $data['payment_number']
-                ),
-                'transaction_date' => $data['payment_date'],
-                'transaction_type' => 'in',
-                'reference_type' => 'customer_payment',
-                'reference_id' => $paymentId,
-                'description' => 'Pembayaran pelanggan: ' . $customer['name'],
-                'amount' => (float) $data['amount'],
-                'payment_method' => $data['payment_method'],
-                'created_by' => $userId,
+                'transaction_number' => $this->makeCashTransactionNumber($data['payment_number']),
+                'transaction_date'   => $data['payment_date'],
+                'transaction_type'   => 'in',
+                'reference_type'     => $saleId !== null ? 'sale_settlement' : 'customer_payment',
+                'reference_id'       => $paymentId,
+                'description'        => 'Pembayaran pelanggan: ' . $customer['name'],
+                'amount'             => $amount,
+                'payment_method'     => $data['payment_method'],
+                'created_by'         => $userId,
             ]);
 
             $this->completeTransaction();
@@ -269,33 +304,37 @@ class FinanceService
     /**
      * Menghitung sisa tagihan PO atau pesanan pelanggan.
      */
-    public function getOutstanding(
-        string $type,
-        int $referenceId
-    ): array {
+    public function getOutstanding(string $type, int $referenceId): array
+    {
+        if ($type === 'sale') {
+            $sale = $this->db->table('sales')->where('id', $referenceId)->get()->getRowArray();
+
+            if (!$sale || $sale['status'] !== 'posted') {
+                throw new RuntimeException('Penjualan tidak ditemukan atau belum diposting.');
+            }
+
+            $total = (float) $sale['total_amount'];
+            $paid  = (float) $sale['paid_amount'];
+
+            return [
+                'total_amount'       => $total,
+                'paid_amount'        => $paid,
+                'outstanding_amount' => max(0, round($total - $paid, 2)),
+                'due_date'           => $sale['due_date'] ?? null,
+            ];
+        }
+
         $config = [
-            'supplier' => [
-                'table' => 'supplier_payments',
-                'column' => 'purchase_order_id',
-                'header' => 'purchase_orders',
-            ],
-            'customer' => [
-                'table' => 'customer_payments',
-                'column' => 'distribution_order_id',
-                'header' => 'distribution_orders',
-            ],
+            'supplier' => ['table' => 'supplier_payments', 'column' => 'purchase_order_id',    'header' => 'purchase_orders'],
+            'customer' => ['table' => 'customer_payments', 'column' => 'distribution_order_id', 'header' => 'distribution_orders'],
         ];
 
         if (!isset($config[$type])) {
             throw new RuntimeException('Jenis tagihan tidak valid.');
         }
 
-        $item = $config[$type];
-
-        $header = $this->db->table($item['header'])
-            ->where('id', $referenceId)
-            ->get()
-            ->getRowArray();
+        $item   = $config[$type];
+        $header = $this->db->table($item['header'])->where('id', $referenceId)->get()->getRowArray();
 
         if (!$header) {
             throw new RuntimeException('Dokumen tagihan tidak ditemukan.');
@@ -304,16 +343,15 @@ class FinanceService
         $paidRow = $this->db->table($item['table'])
             ->selectSum('amount', 'total_paid')
             ->where($item['column'], $referenceId)
-            ->get()
-            ->getRowArray();
+            ->get()->getRowArray();
 
         $total = (float) $header['total_amount'];
-        $paid = (float) ($paidRow['total_paid'] ?? 0);
+        $paid  = (float) ($paidRow['total_paid'] ?? 0);
 
         return [
-            'total_amount' => $total,
-            'paid_amount' => $paid,
-            'outstanding_amount' => max(0, $total - $paid),
+            'total_amount'       => $total,
+            'paid_amount'        => $paid,
+            'outstanding_amount' => max(0, round($total - $paid, 2)),
         ];
     }
 

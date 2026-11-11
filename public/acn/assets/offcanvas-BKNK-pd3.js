@@ -1,1 +1,0 @@
-import{t as e}from"./offcanvas-CF5mG276.js";import{s as t}from"./main-6kgjY3Mz.js";var n={open(n){return e(t).open(n)},close(){return e(t).close()},reset(){return e(t).reset()}};export{n as t};

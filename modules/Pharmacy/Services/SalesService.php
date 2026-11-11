@@ -428,7 +428,9 @@ class SalesService
                     'Mode pembayaran tidak valid.'
                 );
             }
-
+            if ($requestedSettlementMode !== 'paid') {
+                $sale = $this->ensureCreditCustomer($sale, $payment, $userId);
+            }
             $settlement = $this->resolveSettlement(
                 $sale,
                 $totalAmount,
@@ -482,6 +484,8 @@ class SalesService
                     'payment_method'   => $paymentMethod,
                     'reference_number' => $referenceNumber,
                     'due_date'         => $settlement['due_date'],
+                    'customer_id'      => !empty($sale['customer_id']) ? (int) $sale['customer_id'] : null,
+                    'collateral_note'  => $sale['collateral_note'] ?? null,
                     'updated_by'       => $userId,
                     'updated_at'       => $now,
                 ]);
@@ -501,6 +505,45 @@ class SalesService
         }
     }
 
+    /**
+     * Buat draft lalu posting dalam satu panggilan.
+     * Jika posting gagal, draft dibatalkan agar tidak menjadi yatim.
+     */
+    public function checkout(array $data, array $payment, int $userId): int
+    {
+        $saleId = $this->createDraft($data, $userId);
+
+        try {
+            // Normalisasi selisih pembulatan (maks Rp 0,05) pada pelunasan penuh.
+            if (($payment['settlement_mode'] ?? '') === 'paid') {
+                $row = $this->db->table('sales')
+                    ->select('total_amount')
+                    ->where('id', $saleId)
+                    ->get()
+                    ->getRowArray();
+
+                $total = round((float) ($row['total_amount'] ?? 0), 2);
+                $paid  = round((float) ($payment['amount'] ?? 0), 2);
+
+                if ($total > 0 && abs($paid - $total) <= 0.05) {
+                    $payment['amount']         = $total;
+                    $payment['applied_amount'] = $total;
+                }
+            }
+
+            $this->postSale($saleId, $payment, $userId);
+
+            return $saleId;
+        } catch (Throwable $e) {
+            try {
+                $this->cancelSale($saleId, $userId);
+            } catch (Throwable) {
+                // Abaikan; error asli yang dilempar ulang.
+            }
+
+            throw $e;
+        }
+    }
     /*
     |--------------------------------------------------------------------------
     | HOLD / RESUME / CANCEL
@@ -750,9 +793,13 @@ class SalesService
         array $item,
         int $userId
     ): void {
-        $saleDate = (new DateTimeImmutable(
+        /* $saleDate = (new DateTimeImmutable(
             (string) $sale['sale_date']
-        ))->format('Y-m-d H:i:s');
+        ))->format('Y-m-d H:i:s'); */
+
+        $saleDate = (new DateTimeImmutable((string) $sale['sale_date']))
+            ->format('Y-m-d H:i:s');          // tetap dipakai untuk movement_date
+        $today = date('Y-m-d');
 
         $batches = $this->db->query(
             "SELECT *
@@ -768,7 +815,7 @@ class SalesService
              FOR UPDATE",
             [
                 $item['product_id'],
-                $saleDate,
+                $today,
             ]
         )->getResultArray();
 
@@ -1018,6 +1065,57 @@ class SalesService
         }
     }
 
+    /**
+     * Tempo untuk pembeli non-terdaftar: buat pelanggan ringan
+     * agar piutang, pelunasan, dan retur tetap berbasis customer_id.
+     */
+    private function ensureCreditCustomer(array $sale, array $payment, int $userId): array
+    {
+        if (!empty($sale['customer_id'])) {
+            return $sale;
+        }
+
+        $name       = $this->nullableString($payment['buyer_name'] ?? null);
+        $phone      = $this->nullableString($payment['buyer_phone'] ?? null);
+        $collateral = $this->nullableString($payment['collateral_note'] ?? null);
+
+        if ($name === null || $collateral === null) {
+            throw new InvalidArgumentException(
+                'Pembeli tempo non-terdaftar wajib diisi nama dan jaminan.'
+            );
+        }
+
+        $now = date('Y-m-d H:i:s');
+
+        do {
+            $code = 'TMP' . date('ymd') . random_int(1000, 9999);
+
+            $exists = $this->db->table('customers')
+                ->where('code', $code)
+                ->countAllResults() > 0;
+        } while ($exists);
+
+        $inserted = $this->db->table('customers')->insert([
+            'code'          => $code,
+            'name'          => $name,
+            'customer_type' => 'credit_walkin',
+            'phone'         => $phone,
+            'is_active'     => 1,
+            'created_by'    => $userId,
+            'created_at'    => $now,
+            'updated_at'    => $now,
+        ]);
+
+        if (!$inserted) {
+            throw new RuntimeException('Gagal membuat data pembeli tempo.');
+        }
+
+        $sale['customer_id']     = (int) $this->db->insertID();
+        $sale['collateral_note'] = $collateral;
+
+        return $sale;
+    }
+
     /*
     |--------------------------------------------------------------------------
     | SETTLEMENT
@@ -1238,7 +1336,7 @@ class SalesService
             ->insert([
                 'transaction_number' => $transactionNumber,
                 'transaction_date'   => $now,
-                'transaction_type'   => 'income',
+                'transaction_type'   => 'in',
                 'reference_type'     => 'sale',
                 'reference_id'       => $sale['id'],
                 'description'        => 'Pembayaran POS ' . $sale['sale_number'],
@@ -1301,18 +1399,29 @@ class SalesService
 
     private function normalizeDate(mixed $value): string
     {
+        $now = new DateTimeImmutable('now');
+
         if ($value === null || trim((string) $value) === '') {
-            return date('Y-m-d H:i:s');
+            return $now->format('Y-m-d H:i:s');
         }
 
         try {
-            return (new DateTimeImmutable((string) $value))
-                ->format('Y-m-d H:i:s');
+            $date = new DateTimeImmutable((string) $value);
         } catch (Throwable) {
+            throw new InvalidArgumentException('Tanggal penjualan tidak valid.');
+        }
+
+        // POS hanya mencatat transaksi hari ini (toleransi 5 menit ke depan).
+        if (
+            $date->format('Y-m-d') !== $now->format('Y-m-d')
+            || $date > $now->modify('+5 minutes')
+        ) {
             throw new InvalidArgumentException(
-                'Tanggal penjualan tidak valid.'
+                'Tanggal penjualan POS harus hari ini.'
             );
         }
+
+        return $date->format('Y-m-d H:i:s');
     }
 
     private function normalizeDueDate(mixed $value): string
@@ -1395,6 +1504,7 @@ class SalesService
     |--------------------------------------------------------------------------
     */
 
+
     private function beginTransaction(): void
     {
         if (!$this->db->transBegin()) {
@@ -1402,10 +1512,18 @@ class SalesService
                 'Gagal memulai transaksi database.'
             );
         }
+
+        $this->transactionStarted = true;
     }
 
     private function commitTransaction(): void
     {
+        if (!$this->transactionStarted) {
+            throw new RuntimeException(
+                'Tidak ada transaksi database yang aktif.'
+            );
+        }
+
         if ($this->db->transStatus() === false) {
             throw new RuntimeException(
                 'Transaksi database mengalami kegagalan.'
@@ -1417,8 +1535,9 @@ class SalesService
                 'Gagal melakukan commit transaksi database.'
             );
         }
-    }
 
+        $this->transactionStarted = false;
+    }
 
     private function rollbackTransaction(): void
     {

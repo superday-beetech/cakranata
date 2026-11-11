@@ -1,5 +1,13 @@
 # Dependencies
+/vendor/
 /node_modules/
+/frontend/node_modules/
+
+# Build output
+/frontend/src/
+/frontend/src/assets/
+/assets/
+/build/
 
 # Vite development
 /public/hot
@@ -54,6 +62,8 @@ Vagrantfile
 #-------------------------
 # Temporary Files
 #-------------------------
+/writable/Bags/
+/writable/Bags/*
 /writable/cache/*
 !/writable/cache/index.html
 

@@ -1,1 +1,0 @@
-import{O as e,j as t,u as n}from"./runtime-core.esm-bundler-OJ2RBoE_.js";import{t as r}from"./_plugin-vue_export-helper-BDNMzG2s.js";var i={},a={class:`auth-layout`};function o(r,i){return e(),n(`div`,a,[t(r.$slots,`default`,{},void 0,!0)])}var s=r(i,[[`render`,o],[`__scopeId`,`data-v-7d495b49`]]);export{s as default};

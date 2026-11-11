@@ -1,0 +1,1 @@
+import{t as e}from"./modal-JuoUbaBk.js";import{c as t}from"./main-CWj0r2Ld.js";var n={open(n){return e(t).open(n)},close(){return e(t).close()},reset(){return e(t).reset()}};export{n as t};

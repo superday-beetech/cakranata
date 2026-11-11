@@ -199,13 +199,9 @@ class FinanceApiController extends ApiController
         int $referenceId
     ): ResponseInterface {
         try {
-            if (!in_array($type, ['supplier', 'customer'], true)) {
-                return $this->errorResponse(
-                    'Jenis tagihan tidak valid.',
-                    422
-                );
+            if (!in_array($type, ['supplier', 'customer', 'sale'], true)) {
+                return $this->errorResponse('Jenis tagihan tidak valid.', 422);
             }
-
             if ($referenceId < 1) {
                 return $this->errorResponse(
                     'Reference ID tidak valid.',
@@ -250,41 +246,65 @@ class FinanceApiController extends ApiController
         string $errorMessage
     ): ResponseInterface {
         try {
-            $db = Database::connect('pharmacy');
-
+            $db      = Database::connect('pharmacy');
             $builder = $db->table($table);
 
-            $dateFrom = $this->request->getGet('date_from');
-            $dateTo = $this->request->getGet('date_to');
+            $dateFrom = trim((string) $this->request->getGet('date_from'));
+            $dateTo   = trim((string) $this->request->getGet('date_to'));
 
-            if ($dateFrom !== null && $dateFrom !== '') {
-                $builder->where($dateColumn . ' >=', $dateFrom);
+            foreach (['date_from' => $dateFrom, 'date_to' => $dateTo] as $field => $value) {
+                if ($value === '') {
+                    continue;
+                }
+                $parsed = \DateTimeImmutable::createFromFormat('!Y-m-d', $value);
+                if ($parsed === false || $parsed->format('Y-m-d') !== $value) {
+                    return $this->errorResponse("Format {$field} harus YYYY-MM-DD.", 422);
+                }
             }
 
-            if ($dateTo !== null && $dateTo !== '') {
-                $builder->where($dateColumn . ' <=', $dateTo);
+            if ($dateFrom !== '' && $dateTo !== '' && $dateFrom > $dateTo) {
+                return $this->errorResponse('date_from tidak boleh melebihi date_to.', 422);
             }
+
+            // Batas hari penuh: aman untuk kolom DATE maupun DATETIME.
+            if ($dateFrom !== '') {
+                $builder->where($dateColumn . ' >=', $dateFrom . ' 00:00:00');
+            }
+            if ($dateTo !== '') {
+                $builder->where($dateColumn . ' <=', $dateTo . ' 23:59:59');
+            }
+
+            // Filter opsional untuk pelunasan piutang POS.
+            $saleId = (int) $this->request->getGet('sale_id');
+            if ($table === 'customer_payments' && $saleId > 0) {
+                $builder->where('sale_id', $saleId);
+            }
+
+            $page    = max(1, (int) ($this->request->getGet('page') ?? 1));
+            $perPage = min(200, max(1, (int) ($this->request->getGet('per_page') ?? 100)));
+
+            $total = (clone $builder)->countAllResults();
 
             $data = $builder
                 ->orderBy($dateColumn, 'DESC')
-                ->get(100)
+                ->orderBy('id', 'DESC')
+                ->limit($perPage, ($page - 1) * $perPage)
+                ->get()
                 ->getResultArray();
 
-            return $this->successResponse(
-                $data,
-                $successMessage
-            );
+            return $this->successResponse([
+                'items'      => $data,
+                'pagination' => [
+                    'current_page' => $page,
+                    'per_page'     => $perPage,
+                    'total'        => $total,
+                    'last_page'    => (int) ceil($total / $perPage),
+                ],
+            ], $successMessage);
         } catch (Throwable $e) {
-            log_message(
-                'error',
-                '[FinanceApiController::getTransactions] '
-                    . $e->getMessage()
-            );
+            log_message('error', '[FinanceApiController::getTransactions] ' . $e->getMessage());
 
-            return $this->errorResponse(
-                $errorMessage,
-                500
-            );
+            return $this->errorResponse($errorMessage, 500);
         }
     }
 

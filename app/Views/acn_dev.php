@@ -340,11 +340,11 @@
     </script>
 
     <script type="module"
-        src="<?= esc('http://localhost:5173/acn/@vite/client') ?>">
+        src="<?= esc('http://127.0.0.1:5173/acn/@vite/client') ?>">
     </script>
 
     <script type="module"
-        src="<?= esc('http://localhost:5173/acn/src/main.ts') ?>">
+        src="<?= esc('http://127.0.0.1:5173/acn/src/main.ts') ?>">
     </script>
 </body>
 

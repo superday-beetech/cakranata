@@ -35,12 +35,7 @@ class ProductApiPosController extends ApiController
                 (string) ($this->request->getGet('search') ?? '')
             );
 
-            $saleDate = trim(
-                (string) (
-                    $this->request->getGet('sale_date')
-                    ?? date('Y-m-d')
-                )
-            );
+            $saleDate = date('Y-m-d');
 
             // Validasi tanggal transaksi.
             $parsedDate = DateTimeImmutable::createFromFormat(
