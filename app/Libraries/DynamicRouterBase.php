@@ -179,7 +179,7 @@ abstract class DynamicRouterBase extends Controller
         }
 
         [$controller, $method, $params] = $this->resolveControllerAndMethod($seg1, $seg2, $params);
-        // $method = $this->resolveEffectiveMethod($controller, $method);
+        $method = $this->resolveEffectiveMethod($controller, $method);
 
         if (! in_array($controller, $this->allowedControllers, true)) {
             $this->rejectAsNotFound('controller_policy', 'CONTROLLER_NOT_ALLOWED', ['controller' => $controller]);
