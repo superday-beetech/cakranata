@@ -97,7 +97,7 @@ class ProductApiPosController extends ApiController
                 $builder->join(
                     $stockSubquery,
                     'stock.product_id = products.id',
-                    'inner',
+                    'left',
                     false
                 );
 
@@ -145,7 +145,8 @@ class ProductApiPosController extends ApiController
                 'categories.name AS category_name',
                 'units.name AS unit_name',
                 'units.abbreviation AS unit_abbreviation',
-                'stock.stock_available',
+                // 'stock.stock_available',
+                'COALESCE(stock.stock_available, 0) AS stock_available',
             ]);
 
             $items = $builder

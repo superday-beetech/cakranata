@@ -303,8 +303,161 @@ class SalesService
      * @throws InvalidArgumentException
      * @throws RuntimeException
      */
-    public function checkout(array $data, array $payment, int $userId): int
+
+
+    public function checkout(
+        array $data,
+        array $payment,
+        int $userId,
+        ?string $idempotencyKey = null
+    ): int {
+        if ($userId < 1) {
+            throw new InvalidArgumentException('User tidak valid.');
+        }
+
+        if ($idempotencyKey === null || trim($idempotencyKey) === '') {
+            throw new InvalidArgumentException('Idempotency-Key wajib dikirim.');
+        }
+
+        $idempotencyKey = trim($idempotencyKey);
+
+        if (strlen($idempotencyKey) > 128) {
+            throw new InvalidArgumentException('Idempotency-Key maksimal 128 karakter.');
+        }
+
+        $this->beginTransaction();
+
+        try {
+            if (($payment['settlement_mode'] ?? '') === 'paid') {
+                $payment = $this->normalizePaidRounding($data, $payment);
+            }
+
+            $payloadHash = $this->createCheckoutPayloadHash($data, $payment);
+            $now = date('Y-m-d H:i:s');
+
+            // INSERT IGNORE + unique index menangani request bersamaan.
+            $this->db->query(
+                'INSERT IGNORE INTO sale_sync_requests
+                (user_id, idempotency_key, payload_hash, sale_id, created_at)
+             VALUES (?, ?, ?, NULL, ?)',
+                [$userId, $idempotencyKey, $payloadHash, $now]
+            );
+
+            if ($this->db->error()['code'] !== 0) {
+                throw new RuntimeException('Gagal menyimpan kunci idempotensi.');
+            }
+
+            // Lock baris agar request dengan key sama diproses berurutan.
+            $syncRequest = $this->db->query(
+                'SELECT id, payload_hash, sale_id
+             FROM sale_sync_requests
+             WHERE user_id = ? AND idempotency_key = ?
+             FOR UPDATE',
+                [$userId, $idempotencyKey]
+            )->getRowArray();
+
+            if (!$syncRequest) {
+                throw new RuntimeException('Data idempotensi gagal dibaca.');
+            }
+
+            if (!hash_equals(
+                (string) $syncRequest['payload_hash'],
+                $payloadHash
+            )) {
+                throw new \DomainException(
+                    'Idempotency-Key sudah digunakan untuk payload transaksi yang berbeda.'
+                );
+            }
+
+            // Request yang sama sudah pernah berhasil.
+            if ($syncRequest['sale_id'] !== null) {
+                $saleId = (int) $syncRequest['sale_id'];
+
+                $this->commitTransaction();
+
+                return $saleId;
+            }
+
+            // Belum pernah berhasil: proses checkout dalam transaksi yang sama.
+            $saleId = $this->createDraftInternal($data, $userId);
+
+            $this->postSaleInternal($saleId, $payment, $userId);
+
+            $updated = $this->db->table('sale_sync_requests')
+                ->where('id', (int) $syncRequest['id'])
+                ->update([
+                    'sale_id'    => $saleId,
+                    'updated_at' => date('Y-m-d H:i:s'),
+                ]);
+
+            if (!$updated || $this->db->affectedRows() !== 1) {
+                throw new RuntimeException('Referensi transaksi idempotensi gagal diperbarui.');
+            }
+
+            $this->commitTransaction();
+
+            return $saleId;
+        } catch (Throwable $e) {
+            $this->rollbackTransaction();
+            throw $e;
+        }
+    }
+
+    /**
+     * Hash payload checkout secara deterministik.
+     */
+    private function createCheckoutPayloadHash(
+        array $data,
+        array $payment
+    ): string {
+        $payload = [
+            'sale'    => $this->normalizeHashValue($data),
+            'payment' => $this->normalizeHashValue($payment),
+        ];
+
+        $json = json_encode(
+            $payload,
+            JSON_UNESCAPED_UNICODE
+                | JSON_UNESCAPED_SLASHES
+                | JSON_PRESERVE_ZERO_FRACTION
+                | JSON_THROW_ON_ERROR
+        );
+
+        return hash('sha256', $json);
+    }
+
+    /**
+     * Urutkan key associative array, tetapi pertahankan urutan list.
+     */
+    private function normalizeHashValue(mixed $value): mixed
     {
+        if (!is_array($value)) {
+            return $value;
+        }
+
+        if (array_is_list($value)) {
+            return array_map(
+                fn($item) => $this->normalizeHashValue($item),
+                $value
+            );
+        }
+
+        ksort($value);
+
+        foreach ($value as $key => $item) {
+            $value[$key] = $this->normalizeHashValue($item);
+        }
+
+        return $value;
+    }
+
+
+    public function checkoutOld(
+        array $data,
+        array $payment,
+        int $userId,
+        ?string $idempotencyKey = null
+    ): int {
         if ($userId < 1) {
             throw new InvalidArgumentException('User tidak valid.');
         }

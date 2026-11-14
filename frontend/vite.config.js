@@ -12,7 +12,7 @@ const DEV_ORIGIN = `http://${DEV_HOST}:${DEV_PORT}`;
 // ---------- Alias ----------
 const src = (...segments) => path.resolve(__dirname, "src", ...segments);
 
-const ALIAS_DIRS = ["api", "assets", "router", "components", "composables", "modules", "layouts", "stores", "utils", "types"];
+const ALIAS_DIRS = ["api", "assets", "router", "components", "composables", "modules", "layouts", "stores", "utils", "types", "offline"];
 
 const alias = {
   "@": src(),
@@ -32,50 +32,65 @@ const pwa = VitePWA({
     maximumFileSizeToCacheInBytes: 7 * 1024 * 1024,
     globPatterns: ["**/*.{js,css,html,ico,png,woff,woff2}"],
     globIgnores: ["**/tabler-icons-*.svg"],
-    ignoreURLParametersMatching: [/.*/],
+    ignoreURLParametersMatching: [/^utm_/, /^fbclid$/],
 
-    // PENTING: `navigateFallback` sengaja dihapus. Opsi itu membuat SEMUA navigasi
-    // dijawab dari precache (pola app-shell SPA), sehingga halaman server-rendered
-    // akan selalu menampilkan offline.html walau sedang online.
-    // Fallback offline sekarang hanya dipakai saat jaringan gagal (lihat handlerDidError).
     navigateFallback: null,
 
     runtimeCaching: [
       {
-        // Hanya navigasi halaman di bawah /acn/, bukan endpoint API.
-        urlPattern: ({ request, url }) => request.mode === "navigate" && /^\/acn(\/|$)/.test(url.pathname) && !/^\/(acn\/)?api\//.test(url.pathname) && !/\/\.well-known\//.test(url.pathname),
-        handler: "NetworkFirst",
+        // Semua navigasi aplikasi di bawah /acn/.
+        // Jangan menyimpan HTML halaman pengguna ke runtime cache.
+        // urlPattern: ({ request, url }) => request.mode === "navigate" && /^\/acn(\/|$)/.test(url.pathname) && !/^\/(acn\/)?api\//.test(url.pathname) && !/\/\.well-known\//.test(url.pathname),
+        urlPattern: ({ request, url }) => request.mode === "navigate" && (url.pathname === "/acn/" || url.pathname === "/acn") && !url.search,
+        handler: "NetworkOnly",
+
         options: {
-          cacheName: "acn-pages",
-          networkTimeoutSeconds: 3,
-          cacheableResponse: { statuses: [200] },
-          expiration: { maxEntries: 30, maxAgeSeconds: 60 * 60 * 24 * 7 },
           plugins: [
             {
-              // Jaringan gagal dan halaman belum ada di cache -> tampilkan offline.html.
-              //   handlerDidError: async () => (await caches.match("/acn/offline.html", { ignoreSearch: true })) || Response.error(),
+              // Jika navigasi gagal karena jaringan/server tidak tersedia,
+              // kembalikan offline.html yang sudah masuk precache.
               handlerDidError: async () => {
-                const cached = await caches.match("/acn/offline.html", { ignoreSearch: true });
-                if (cached) return cached;
+                const fallback = await caches.match("/acn/offline.html", { ignoreSearch: true });
 
-                // Fallback terakhir: HTML langsung jika cache gagal
+                if (fallback) return fallback;
+
                 return new Response(
-                  "<!doctype html><meta charset=utf-8><title>Offline</title>" + '<body style="font-family:sans-serif;text-align:center;padding:3rem">' + "<h1>Tidak ada koneksi</h1><p>Coba lagi setelah online.</p></body>",
-                  { status: 200, headers: { "Content-Type": "text/html; charset=utf-8" } },
+                  `<!doctype html>
+              <html lang="id">
+                <head>
+                  <meta charset="utf-8">
+                  <meta name="viewport" content="width=device-width, initial-scale=1">
+                  <title>Offline - Cakra</title>
+                </head>
+                <body style="font-family:Arial,sans-serif;text-align:center;padding:3rem">
+                  <h1>Koneksi tidak tersedia</h1>
+                  <p>Silakan periksa koneksi dan coba kembali.</p>
+                </body>
+              </html>`,
+                  {
+                    status: 200,
+                    headers: {
+                      "Content-Type": "text/html; charset=utf-8",
+                    },
+                  },
                 );
               },
             },
           ],
         },
       },
+
+      // Pertahankan konfigurasi CacheFirst untuk SVG ikon
       {
-        // SVG ikon besar: simpan setelah dipakai pertama kali.
         urlPattern: /\/acn\/assets\/tabler-icons-.*\.svg$/,
         handler: "CacheFirst",
         options: {
           cacheName: "acn-icons",
           cacheableResponse: { statuses: [200] },
-          expiration: { maxEntries: 1, maxAgeSeconds: 60 * 60 * 24 * 30 },
+          expiration: {
+            maxEntries: 1,
+            maxAgeSeconds: 60 * 60 * 24 * 30,
+          },
         },
       },
     ],

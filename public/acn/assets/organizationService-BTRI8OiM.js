@@ -1,0 +1,1 @@
+import{t as e}from"./client-DbKkDZTH.js";var t=`/organization/organizations`,n={getAll(n={}){return e.get(t,{params:n})},getById(n){return e.get(`${t}/show-organization/${n}`)},create(n){return e.post(`${t}/create-organization`,n)},update(n,r){return e.put(`${t}/update-organization/${n}`,r)},delete(n){return e.delete(`${t}/delete-organization/${n}`)}};export{n as t};

@@ -1,0 +1,1 @@
+import{E as e,J as t,T as n}from"./runtime-core.esm-bundler-eCuLVqj1.js";function r(){let r=t(navigator.onLine),i=()=>{r.value=navigator.onLine};return n(()=>{window.addEventListener(`online`,i),window.addEventListener(`offline`,i)}),e(()=>{window.removeEventListener(`online`,i),window.removeEventListener(`offline`,i)}),{isOnline:r}}export{r as t};

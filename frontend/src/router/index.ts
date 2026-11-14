@@ -53,6 +53,12 @@ const routes: RouteRecordRaw[] = [
     meta: { layout: "auth" },
   },
   {
+    path: "/offline/home",
+    name: "OfflineHome",
+    component: () => import("@/components/OfflineHomeView.vue"),
+    meta: { layout: "auth" },
+  },
+  {
     path: "/organization/select",
     name: "OrganizationSelection",
     component: () => import("@/modules/auth/views/OrganizationSelectionView.vue"),
@@ -89,9 +95,15 @@ router.beforeEach(async (to, from) => {
 
   const isOrganizationSelection = to.name === "OrganizationSelection";
 
-  // 1. Cek offline lebih dulu — return langsung, jangan lanjut.
-  if (to.meta.requiresOnline && !navigator.onLine) {
-    return { name: "Offline" };
+  // 1. Halaman yang membutuhkan autentikasi tidak dapat dibuka
+  // ketika jaringan terputus karena belum tersedia penyimpanan offline.
+  if (!navigator.onLine && to.name !== "Offline" && to.meta.requiresAuth) {
+    return {
+      name: "Offline",
+      query: {
+        redirect: to.fullPath,
+      },
+    };
   }
 
   // 2. Guest-only: user sudah login → ke Dashboard.

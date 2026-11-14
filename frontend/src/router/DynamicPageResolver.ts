@@ -88,6 +88,9 @@ const pageAliases: Record<string, Record<string, string[]>> = {
   "plugins/sales": {
     "sales-list": ["saleslist"],
   },
+  dexlite: {
+    offline: ["offline"],
+  },
 };
 
 /**

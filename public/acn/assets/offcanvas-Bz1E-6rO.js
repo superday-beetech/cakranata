@@ -1,1 +1,0 @@
-import{t as e}from"./useOffcanvas-BhOmaSCm.js";import{a as t}from"./main-Bo3jpKW7.js";var n={open(n){return e(t).open(n)},close(){return e(t).close()},reset(){return e(t).reset()}};export{n as t};

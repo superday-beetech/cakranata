@@ -122,6 +122,74 @@ class SalesApiController extends ApiController
     public function checkout()
     {
         $userId = $this->requireAuth();
+
+        if ($userId < 1) {
+            return $this->errorResponse('User tidak terautentikasi.', 401);
+        }
+
+        $data = $this->parseJsonBody();
+
+        if ($data === null) {
+            return $this->errorResponse('Format request tidak valid.', 400);
+        }
+
+        if (!is_array($data['payment'] ?? null)) {
+            return $this->errorResponse('Data pembayaran tidak valid.', 400);
+        }
+
+        $idempotencyKey = $this->getIdempotencyKey();
+
+        if ($idempotencyKey === null) {
+            return $this->errorResponse('Idempotency-Key wajib dikirim.', 400);
+        }
+
+        if (strlen($idempotencyKey) > 128) {
+            return $this->errorResponse('Idempotency-Key maksimal 128 karakter.', 400);
+        }
+
+        try {
+            $payment = $this->paymentFromRequest($data['payment']);
+
+            $saleId = $this->salesService->checkout(
+                $data,
+                $payment,
+                $userId,
+                $idempotencyKey
+            );
+
+            $sale = $this->salesService->getSaleDetail($saleId);
+
+            if (!$sale) {
+                return $this->errorResponse(
+                    'Transaksi berhasil diproses tetapi detail tidak ditemukan.',
+                    500
+                );
+            }
+
+            return $this->successResponse(
+                $sale,
+                'Penjualan berhasil diselesaikan.',
+                201
+            );
+        } catch (\DomainException $e) {
+            return $this->errorResponse($e->getMessage(), 409);
+        } catch (InvalidArgumentException $e) {
+            return $this->errorResponse($e->getMessage(), 422);
+        } catch (RuntimeException $e) {
+            return $this->errorResponse($e->getMessage(), 422);
+        } catch (Throwable $e) {
+            $this->logError('checkout', $e);
+
+            return $this->errorResponse(
+                'Terjadi kesalahan saat menyelesaikan penjualan.',
+                500
+            );
+        }
+    }
+
+    public function checkoutOld()
+    {
+        $userId = $this->requireAuth();
         if ($userId < 1) {
             return $this->errorResponse('User tidak terautentikasi.', 401);
         }
@@ -145,7 +213,18 @@ class SalesApiController extends ApiController
 
         try {
             $payment = $this->paymentFromRequest($data['payment']);
-            $saleId = $this->salesService->checkout($data, $payment, $userId);
+            if ($idempotencyKey === null) {
+                return $this->errorResponse(
+                    'Idempotency-Key wajib diisi.',
+                    400
+                );
+            }
+            $saleId = $this->salesService->checkout(
+                $data,
+                $payment,
+                $userId,
+                $idempotencyKey
+            );
             $sale = $this->salesService->getSaleDetail($saleId);
 
             if ($idempotencyKey !== null) {
@@ -336,13 +415,19 @@ class SalesApiController extends ApiController
         }
     }
 
-    private function getIdempotencyKey(): ?string
+    /* private function getIdempotencyKey(): ?string
     {
         $key = trim($this->request->getHeaderLine('Idempotency-Key'));
 
         return $key === '' ? null : substr($key, 0, 128);
-    }
+    } */
 
+    private function getIdempotencyKey(): ?string
+    {
+        $key = trim($this->request->getHeaderLine('Idempotency-Key'));
+
+        return $key === '' ? null : $key;
+    }
     /**
      * Normalisasi payment payload.
      *

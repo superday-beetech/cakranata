@@ -2,25 +2,35 @@
 import { ref, onMounted, onUnmounted } from "vue";
 
 const isOnline = ref<boolean>(navigator.onLine);
-const showBanner = ref<boolean>(!navigator.onLine); // Muncul otomatis jika saat load awal sudah offline
+const showBanner = ref<boolean>(!navigator.onLine);
+
 let hideTimer: number | null = null;
 
-const handleOnline = () => {
+function clearHideTimer(): void {
+  if (hideTimer !== null) {
+    window.clearTimeout(hideTimer);
+    hideTimer = null;
+  }
+}
+
+function handleOnline(): void {
   isOnline.value = true;
   showBanner.value = true;
 
-  // Jika kembali online, sembunyikan banner secara otomatis setelah 3 detik
-  if (hideTimer) clearTimeout(hideTimer);
+  clearHideTimer();
+
   hideTimer = window.setTimeout(() => {
     showBanner.value = false;
+    hideTimer = null;
   }, 3000);
-};
+}
 
-const handleOffline = () => {
+function handleOffline(): void {
   isOnline.value = false;
-  showBanner.value = true; // Selalu tampilkan banner merah saat offline
-  if (hideTimer) clearTimeout(hideTimer);
-};
+  showBanner.value = true;
+
+  clearHideTimer();
+}
 
 onMounted(() => {
   window.addEventListener("online", handleOnline);
@@ -30,7 +40,8 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener("online", handleOnline);
   window.removeEventListener("offline", handleOffline);
-  if (hideTimer) clearTimeout(hideTimer);
+
+  clearHideTimer();
 });
 </script>
 
@@ -47,13 +58,13 @@ onUnmounted(() => {
       v-if="showBanner"
       class="fixed top-0 left-0 right-0 z-50 px-4 py-2.5 text-center text-sm font-medium shadow-md flex items-center justify-center gap-2 transition-colors duration-300"
       :class="isOnline ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white'"
+      role="status"
+      aria-live="polite"
     >
-      <!-- Indikator Titik Berdenyut -->
-      <span class="inline-block w-2.5 h-2.5 rounded-full" :class="isOnline ? 'bg-emerald-200 animate-ping' : 'bg-rose-200 animate-pulse'"></span>
+      <span class="inline-block w-2.5 h-2.5 rounded-full" :class="isOnline ? 'bg-emerald-200' : 'bg-rose-200 animate-pulse'" />
 
-      <!-- Pesan Dinamis -->
       <span>
-        {{ isOnline ? "Koneksi internet kembali terhubung. Menyinkronkan data..." : "Anda sedang offline. Perubahan disimpan secara lokal (Offline-First Mode)." }}
+        {{ isOnline ? "Koneksi jaringan tersedia kembali. Status server belum dipastikan." : "Koneksi jaringan terputus. Perubahan belum tentu tersimpan." }}
       </span>
     </div>
   </transition>

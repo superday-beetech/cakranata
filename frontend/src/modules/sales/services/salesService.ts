@@ -40,14 +40,30 @@ export const salesService = {
     return requireData(response.data.data, "Response pembuatan penjualan tidak memiliki data.");
   },
 
-  async checkout(payload: CreateSalePayload, payment: PostSalePayload): Promise<Sale> {
+  async checkout(payload: CreateSalePayload, payment: PostSalePayload, idempotencyKey?: string): Promise<Sale> {
+    const key = idempotencyKey ?? generateIdempotencyKey();
+
+    const response = await api.post<ApiResponse<Sale>>(
+      `${BASE_URL}/checkout`,
+      { ...payload, payment },
+      {
+        headers: {
+          "Idempotency-Key": key,
+        },
+      },
+    );
+
+    return requireData(response.data.data, "Response checkout penjualan tidak memiliki data.");
+  },
+
+  /*   async checkout(payload: CreateSalePayload, payment: PostSalePayload): Promise<Sale> {
     const response = await api.post<ApiResponse<Sale>>(
       `${BASE_URL}/checkout`,
       { ...payload, payment },
       { headers: { "Idempotency-Key": generateIdempotencyKey() } }, // ✅ Idempotency
     );
     return requireData(response.data.data, "Response checkout penjualan tidak memiliki data.");
-  },
+  }, */
 
   async postSale(id: number, payload: PostSalePayload): Promise<Sale> {
     // ✅ console.log DIHAPUS

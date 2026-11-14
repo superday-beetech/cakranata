@@ -36,28 +36,48 @@ class ErpSpaController extends BaseController
                 'ERP frontend belum dibuild. Jalankan npm run build terlebih dahulu.'
             );
         }
+        $manifestContent = file_get_contents($manifestPath);
+
+        if ($manifestContent === false) {
+            throw PageNotFoundException::forPageNotFound(
+                'Manifest Vite tidak dapat dibaca.'
+            );
+        }
+
         $manifest = json_decode(
-            file_get_contents($manifestPath),
+            $manifestContent,
             true,
             512,
             JSON_THROW_ON_ERROR
         );
-        $entry = $manifest['src/main.ts'] ?? null;
-        // 2. Tidak ada dev server tapi manifest ada → build/preview
 
-        print_r($this->isViteDevServerRunning());
-        exit;
-        if ($hasManifest) {
-            return view('acn_app', [
-                'entry' => $entry,
-                'manifest' => $manifestPath,
-            ]);
+        if (! is_array($manifest)) {
+            throw PageNotFoundException::forPageNotFound(
+                'Format manifest Vite tidak valid.'
+            );
         }
 
+        $entry = $manifest['src/main.ts'] ?? null;
+
+        if (
+            ! is_array($entry)
+            || empty($entry['isEntry'])
+            || empty($entry['file'])
+        ) {
+            throw PageNotFoundException::forPageNotFound(
+                'Entry point Vue tidak ditemukan dalam manifest Vite.'
+            );
+        }
+
+        return view('acn_app', [
+            'entry'    => $entry,
+            'manifest' => $manifest,
+        ]);
+
         // 3. Dua-duanya tidak ada → error jelas
-        throw PageNotFoundException::forPageNotFound(
+        /* throw PageNotFoundException::forPageNotFound(
             'ERP frontend belum dibuild. Jalankan `npm run dev` atau `npm run build` dulu.'
-        );
+        ); */
     }
 
     private function isViteDevServerRunning(): bool
