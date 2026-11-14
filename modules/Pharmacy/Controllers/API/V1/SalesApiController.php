@@ -36,7 +36,6 @@ class SalesApiController extends ApiController
 
     public function index()
     {
-        echo 'asasad';
         try {
             $result = $this->salesService->getSales([
                 'page'     => $this->request->getGet('page'),
