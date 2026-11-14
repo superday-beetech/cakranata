@@ -86,7 +86,13 @@ export function usePosTransactionActions(options: UsePosTransactionActionsOption
     }
 
     try {
-      await options.checkoutCurrentSale();
+      const result = await options.checkoutCurrentSale();
+
+      if (result && typeof result === "object" && "status" in result && result.status === "queued") {
+        options.showSuccess("Transaksi tersimpan di perangkat dan menunggu sinkronisasi ke server.");
+        options.focusBarcode();
+        return;
+      }
 
       options.playTransactionSound();
       options.showSuccess("Penjualan berhasil diposting.");
