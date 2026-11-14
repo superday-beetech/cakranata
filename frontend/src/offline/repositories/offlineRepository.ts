@@ -155,17 +155,36 @@ export async function saveOfflineSale(payload: OfflineSalePayload, warehouseId: 
 // =============================================================
 
 export async function getPendingSyncQueue(): Promise<SyncQueueItem[]> {
-  return offlineDb.syncQueue.where("status").equals("pending").sortBy("createdAt");
+  const timestamp = now();
+  const rows = await offlineDb.syncQueue.where("status").equals("pending").sortBy("createdAt");
+
+  return rows.filter((row) => !row.nextAttemptAt || row.nextAttemptAt <= timestamp);
 }
 
 export async function getLocalTransaction(localId: string): Promise<LocalTransaction | undefined> {
   return offlineDb.transactions.get(localId);
 }
 
-export async function markTransactionSyncing(localId: string): Promise<void> {
+/**
+ * Mengambil satu antrean secara atomik agar tab lain tidak memprosesnya bersamaan.
+ */
+export async function markTransactionSyncing(localId: string): Promise<boolean> {
   const timestamp = now();
 
-  await offlineDb.transaction("rw", offlineDb.transactions, offlineDb.syncQueue, async () => {
+  return offlineDb.transaction("rw", offlineDb.transactions, offlineDb.syncQueue, async () => {
+    const [transaction, queueItem] = await Promise.all([
+      offlineDb.transactions.get(localId),
+      offlineDb.syncQueue.get(localId),
+    ]);
+
+    if (!transaction || !queueItem || transaction.status !== "pending" || queueItem.status !== "pending") {
+      return false;
+    }
+
+    if (queueItem.nextAttemptAt && queueItem.nextAttemptAt > timestamp) {
+      return false;
+    }
+
     await offlineDb.transactions.update(localId, {
       status: "syncing",
       updatedAt: timestamp,
@@ -173,9 +192,138 @@ export async function markTransactionSyncing(localId: string): Promise<void> {
 
     await offlineDb.syncQueue.update(localId, {
       status: "processing",
-      attempts: (await offlineDb.syncQueue.get(localId))?.attempts ?? 0,
+      attempts: queueItem.attempts + 1,
       lastAttemptAt: timestamp,
       updatedAt: timestamp,
+      errorMessage: undefined,
+    });
+
+    return true;
+  });
+}
+
+export async function markTransactionSynced(localId: string, serverId: number | string): Promise<void> {
+  const timestamp = now();
+
+  await offlineDb.transaction("rw", offlineDb.transactions, offlineDb.syncQueue, async () => {
+    await offlineDb.transactions.update(localId, {
+      status: "synced",
+      serverId,
+      syncedAt: timestamp,
+      updatedAt: timestamp,
+      errorMessage: undefined,
+    });
+
+    await offlineDb.syncQueue.update(localId, {
+      status: "completed",
+      updatedAt: timestamp,
+      errorMessage: undefined,
     });
   });
+}
+
+export async function markTransactionRetry(
+  localId: string,
+  message: string,
+  delayMs: number,
+  maxAttempts = 8,
+): Promise<"pending" | "failed"> {
+  const timestamp = new Date();
+  const nowIso = timestamp.toISOString();
+  const nextAttemptAt = new Date(timestamp.getTime() + Math.max(0, delayMs)).toISOString();
+
+  return offlineDb.transaction("rw", offlineDb.transactions, offlineDb.syncQueue, async () => {
+    const queueItem = await offlineDb.syncQueue.get(localId);
+    const attempts = queueItem?.attempts ?? maxAttempts;
+    const exhausted = attempts >= maxAttempts;
+
+    await offlineDb.transactions.update(localId, {
+      status: exhausted ? "failed" : "pending",
+      updatedAt: nowIso,
+      errorMessage: message,
+    });
+
+    await offlineDb.syncQueue.update(localId, {
+      status: exhausted ? "failed" : "pending",
+      nextAttemptAt: exhausted ? undefined : nextAttemptAt,
+      updatedAt: nowIso,
+      errorMessage: message,
+    });
+
+    return exhausted ? "failed" : "pending";
+  });
+}
+
+export async function markTransactionConflict(
+  localId: string,
+  conflictType: SyncConflict["conflictType"],
+  message: string,
+  serverData?: Record<string, unknown>,
+): Promise<void> {
+  const timestamp = now();
+
+  const conflict: SyncConflict = {
+    id: createId(),
+    localId,
+    conflictType,
+    message,
+    serverData,
+    createdAt: timestamp,
+  };
+
+  await offlineDb.transaction(
+    "rw",
+    offlineDb.transactions,
+    offlineDb.syncQueue,
+    offlineDb.syncConflicts,
+    async () => {
+      await offlineDb.transactions.update(localId, {
+        status: "conflict",
+        updatedAt: timestamp,
+        errorMessage: message,
+      });
+
+      await offlineDb.syncQueue.update(localId, {
+        status: "conflict",
+        updatedAt: timestamp,
+        errorMessage: message,
+      });
+
+      await offlineDb.syncConflicts.add(conflict);
+    },
+  );
+}
+
+/**
+ * Pulihkan antrean yang tertinggal berstatus processing akibat tab/browser tertutup.
+ */
+export async function recoverStaleSyncQueue(staleAfterMs = 5 * 60 * 1000): Promise<number> {
+  const cutoff = new Date(Date.now() - staleAfterMs).toISOString();
+  const processing = await offlineDb.syncQueue.where("status").equals("processing").toArray();
+  const stale = processing.filter((item) => !item.lastAttemptAt || item.lastAttemptAt <= cutoff);
+
+  if (stale.length === 0) {
+    return 0;
+  }
+
+  const timestamp = now();
+
+  await offlineDb.transaction("rw", offlineDb.transactions, offlineDb.syncQueue, async () => {
+    for (const item of stale) {
+      await offlineDb.syncQueue.update(item.localId, {
+        status: "pending",
+        nextAttemptAt: timestamp,
+        updatedAt: timestamp,
+        errorMessage: "Proses sinkronisasi sebelumnya terhenti dan akan dicoba kembali.",
+      });
+
+      await offlineDb.transactions.update(item.localId, {
+        status: "pending",
+        updatedAt: timestamp,
+        errorMessage: "Proses sinkronisasi sebelumnya terhenti dan akan dicoba kembali.",
+      });
+    }
+  });
+
+  return stale.length;
 }
