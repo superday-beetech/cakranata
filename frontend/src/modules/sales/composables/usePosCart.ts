@@ -35,6 +35,12 @@ export function usePosCart(options: PosCartOptions = {}) {
   }
 
   function validateStock(item: PosCartItem, quantity: number): void {
+    // Kebijakan offline default: izinkan stok proyeksi menjadi negatif.
+    // Server tetap menjadi sumber validasi stok final saat transaksi disinkronkan.
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      return;
+    }
+
     if (item.available_stock === undefined) {
       return;
     }
