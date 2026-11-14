@@ -311,11 +311,11 @@ export function usePosSale(options: PosSaleOptions) {
         return { status: "synced", sale };
       } catch (error) {
         const shouldQueue =
-          !axios.isAxiosError(error) ||
-          !error.response ||
-          error.response.status >= 500 ||
-          error.response.status === 408 ||
-          error.response.status === 429;
+          axios.isAxiosError(error) &&
+          (!error.response ||
+            error.response.status >= 500 ||
+            error.response.status === 408 ||
+            error.response.status === 429);
 
         if (!shouldQueue) {
           throw error;
