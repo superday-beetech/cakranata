@@ -118,13 +118,18 @@ export async function deleteSalesDraft(id: string): Promise<void> {
 // OFFLINE SALE TRANSACTION
 // =============================================================
 
-export async function saveOfflineSale(payload: OfflineSalePayload, warehouseId: number | string, policySnapshot: OfflineStockPolicySnapshot): Promise<LocalTransaction> {
+export async function saveOfflineSale(
+  payload: OfflineSalePayload,
+  warehouseId: number | string | null,
+  policySnapshot: OfflineStockPolicySnapshot,
+  idempotencyKey?: string,
+): Promise<LocalTransaction> {
   const timestamp = now();
   const localId = createId();
 
   const transaction: LocalTransaction = {
     localId,
-    idempotencyKey: createId(),
+    idempotencyKey: idempotencyKey ?? createId(),
     transactionType: "sale",
     status: "pending",
     warehouseId,
