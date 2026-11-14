@@ -64,10 +64,11 @@ export function usePosSale(options: PosSaleOptions) {
   function handleOfflineTransactionSynced(event: Event): void {
     const detail = (event as CustomEvent<{ localId?: string; serverId?: number }>).detail;
 
-    if (!detail?.localId || detail.localId !== offlineTransaction.value?.localId) return;
+    const current = offlineTransaction.value;
+    if (!detail?.localId || !current || detail.localId !== current.localId) return;
 
     offlineTransaction.value = {
-      ...offlineTransaction.value,
+      ...current,
       status: "synced",
       serverId: detail.serverId,
       syncedAt: new Date().toISOString(),
@@ -78,10 +79,11 @@ export function usePosSale(options: PosSaleOptions) {
   function handleOfflineTransactionConflict(event: Event): void {
     const detail = (event as CustomEvent<{ localId?: string; message?: string }>).detail;
 
-    if (!detail?.localId || detail.localId !== offlineTransaction.value?.localId) return;
+    const current = offlineTransaction.value;
+    if (!detail?.localId || !current || detail.localId !== current.localId) return;
 
     offlineTransaction.value = {
-      ...offlineTransaction.value,
+      ...current,
       status: "conflict",
       errorMessage: detail.message ?? "Transaksi perlu diperiksa sebelum dapat disinkronkan.",
       updatedAt: new Date().toISOString(),
