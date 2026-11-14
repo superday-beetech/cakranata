@@ -90,9 +90,24 @@ export function usePosSale(options: PosSaleOptions) {
     };
   }
 
+  function handleOfflineTransactionDeferred(event: Event): void {
+    const detail = (event as CustomEvent<{ localId?: string; message?: string; state?: "pending" | "failed" }>).detail;
+
+    const current = offlineTransaction.value;
+    if (!detail?.localId || !current || detail.localId !== current.localId) return;
+
+    offlineTransaction.value = {
+      ...current,
+      status: detail.state === "failed" ? "failed" : current.status,
+      errorMessage: detail.message ?? "Sinkronisasi akan dicoba kembali.",
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
   if (typeof window !== "undefined") {
     window.addEventListener("offline:transaction-synced", handleOfflineTransactionSynced);
     window.addEventListener("offline:transaction-conflict", handleOfflineTransactionConflict);
+    window.addEventListener("offline:transaction-deferred", handleOfflineTransactionDeferred);
   }
 
   onBeforeUnmount(() => {
@@ -100,6 +115,7 @@ export function usePosSale(options: PosSaleOptions) {
 
     window.removeEventListener("offline:transaction-synced", handleOfflineTransactionSynced);
     window.removeEventListener("offline:transaction-conflict", handleOfflineTransactionConflict);
+    window.removeEventListener("offline:transaction-deferred", handleOfflineTransactionDeferred);
   });
 
   // =========================================================
