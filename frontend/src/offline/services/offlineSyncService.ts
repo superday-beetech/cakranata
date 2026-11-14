@@ -106,6 +106,12 @@ export function syncPendingSales(isAuthenticated: boolean): Promise<SyncSummary>
       const transaction = await getLocalTransaction(item.localId);
 
       if (!transaction) {
+        await markTransactionRetry(
+          item.localId,
+          "Data transaksi lokal tidak ditemukan. Antrean tidak dapat dikirim.",
+          0,
+          1,
+        );
         summary.deferred++;
         continue;
       }
