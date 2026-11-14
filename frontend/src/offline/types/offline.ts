@@ -71,7 +71,7 @@ export interface LocalTransaction {
   serverId?: number | string;
   transactionType: "sale";
   status: LocalTransactionStatus;
-  warehouseId: number | string;
+  warehouseId: number | string | null;
   policySnapshot: OfflineStockPolicySnapshot;
   payload: OfflineSalePayload;
   createdAt: string;
