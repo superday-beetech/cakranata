@@ -67,9 +67,9 @@ function retryDelay(attempts: number): number {
   return Math.min(exponential, MAX_RETRY_DELAY_MS);
 }
 
-function emitSyncEvent(name: string, detail: Record<string, unknown>): void {
+function emitSyncEvent<T extends object>(name: string, detail: T): void {
   if (typeof window !== "undefined") {
-    window.dispatchEvent(new CustomEvent(name, { detail }));
+    window.dispatchEvent(new CustomEvent<T>(name, { detail }));
   }
 }
 
@@ -196,6 +196,7 @@ export function syncPendingSales(isAuthenticated: boolean): Promise<SyncSummary>
  */
 export function installOfflineSync(isAuthenticated: () => boolean, router: Router): () => void {
   let retryTimer: number | null = null;
+  let recoveryTimer: number | null = null;
 
   const run = (): void => {
     void syncPendingSales(isAuthenticated()).catch((error: unknown) => {
@@ -227,6 +228,9 @@ export function installOfflineSync(isAuthenticated: () => boolean, router: Route
 
   window.addEventListener("online", run);
   window.addEventListener("offline:queue-updated", run);
+
+  // Pulihkan lease antrean yang tertinggal jika tab/browser sebelumnya tertutup.
+  recoveryTimer = window.setInterval(run, 60 * 1000);
   window.addEventListener("offline:transaction-deferred", handleDeferred);
   document.addEventListener("visibilitychange", handleVisibilityChange);
 
@@ -246,6 +250,11 @@ export function installOfflineSync(isAuthenticated: () => boolean, router: Route
     if (retryTimer !== null) {
       window.clearTimeout(retryTimer);
       retryTimer = null;
+    }
+
+    if (recoveryTimer !== null) {
+      window.clearInterval(recoveryTimer);
+      recoveryTimer = null;
     }
 
     document.removeEventListener("visibilitychange", handleVisibilityChange);
