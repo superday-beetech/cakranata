@@ -196,6 +196,7 @@ export function installOfflineSync(isAuthenticated: () => boolean, router: Route
   };
 
   window.addEventListener("online", run);
+  window.addEventListener("offline:queue-updated", run);
   document.addEventListener("visibilitychange", handleVisibilityChange);
 
   const removeAfterEach = router.afterEach((to) => {
@@ -208,6 +209,7 @@ export function installOfflineSync(isAuthenticated: () => boolean, router: Route
 
   return () => {
     window.removeEventListener("online", run);
+    window.removeEventListener("offline:queue-updated", run);
     document.removeEventListener("visibilitychange", handleVisibilityChange);
     removeAfterEach();
   };
