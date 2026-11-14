@@ -1,9 +1,12 @@
-import { computed, ref, type ComputedRef, type Ref } from "vue";
+import { computed, onBeforeUnmount, ref, type ComputedRef, type Ref } from "vue";
+import axios from "axios";
 import { salesService } from "../services/salesService";
 
 import type { PosCartItem, Sale, SaleItem, CreateSalePayload, DiscountMode, TaxMode, SettlementMode, PaymentMethod, PostSalePayload } from "../types/sales";
 
 import { itemDiscountAmount, roundMoney, toNumber } from "../utils/posMath";
+import { saveOfflineSale } from "@/offline/repositories/offlineRepository";
+import type { LocalTransaction, OfflineStockPolicySnapshot } from "@/offline/types/offline";
 
 // =============================================================
 // OPTIONS
@@ -56,6 +59,46 @@ export function usePosSale(options: PosSaleOptions) {
 
   const heldTransactions = ref<Sale[]>([]);
   const loadingHeldTransactions = ref(false);
+  const offlineTransaction = ref<LocalTransaction | null>(null);
+
+  function handleOfflineTransactionSynced(event: Event): void {
+    const detail = (event as CustomEvent<{ localId?: string; serverId?: number }>).detail;
+
+    if (!detail?.localId || detail.localId !== offlineTransaction.value?.localId) return;
+
+    offlineTransaction.value = {
+      ...offlineTransaction.value,
+      status: "synced",
+      serverId: detail.serverId,
+      syncedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
+  function handleOfflineTransactionConflict(event: Event): void {
+    const detail = (event as CustomEvent<{ localId?: string; message?: string }>).detail;
+
+    if (!detail?.localId || detail.localId !== offlineTransaction.value?.localId) return;
+
+    offlineTransaction.value = {
+      ...offlineTransaction.value,
+      status: "conflict",
+      errorMessage: detail.message ?? "Transaksi perlu diperiksa sebelum dapat disinkronkan.",
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
+  if (typeof window !== "undefined") {
+    window.addEventListener("offline:transaction-synced", handleOfflineTransactionSynced);
+    window.addEventListener("offline:transaction-conflict", handleOfflineTransactionConflict);
+  }
+
+  onBeforeUnmount(() => {
+    if (typeof window === "undefined") return;
+
+    window.removeEventListener("offline:transaction-synced", handleOfflineTransactionSynced);
+    window.removeEventListener("offline:transaction-conflict", handleOfflineTransactionConflict);
+  });
 
   // =========================================================
   // TRANSACTION STATE
@@ -191,7 +234,37 @@ export function usePosSale(options: PosSaleOptions) {
     }
   }
 
-  async function checkoutCurrentSale(): Promise<Sale | null> {
+  async function persistOfflineCheckout(
+    payload: CreateSalePayload,
+    paymentData: PostSalePayload,
+    idempotencyKey: string,
+  ): Promise<{ status: "queued"; transaction: LocalTransaction }> {
+    const policySnapshot: OfflineStockPolicySnapshot = {
+      policy: "allow_negative",
+      settingsVersion: 0,
+      createdAt: new Date().toISOString(),
+    };
+
+    const transaction = await saveOfflineSale(
+      { sale: payload, payment: paymentData },
+      null,
+      policySnapshot,
+      idempotencyKey,
+    );
+
+    resetTransactionState();
+    offlineTransaction.value = transaction;
+
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("offline:queue-updated"));
+    }
+
+    return { status: "queued", transaction };
+  }
+
+  async function checkoutCurrentSale(): Promise<
+    { status: "synced"; sale: Sale } | { status: "queued"; transaction: LocalTransaction } | null
+  > {
     if (options.processing.value) return null;
 
     if (options.currentSale.value) {
@@ -207,10 +280,33 @@ export function usePosSale(options: PosSaleOptions) {
     try {
       const payload = buildSalePayload();
       const paymentData = options.payment.buildPaymentData();
+      const idempotencyKey = crypto.randomUUID();
 
-      options.currentSale.value = await salesService.checkout(payload, paymentData);
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        return await persistOfflineCheckout(payload, paymentData, idempotencyKey);
+      }
 
-      return options.currentSale.value;
+      try {
+        const sale = await salesService.checkout(payload, paymentData, idempotencyKey);
+        options.currentSale.value = sale;
+
+        return { status: "synced", sale };
+      } catch (error) {
+        const shouldQueue =
+          !axios.isAxiosError(error) ||
+          !error.response ||
+          error.response.status >= 500 ||
+          error.response.status === 408 ||
+          error.response.status === 429;
+
+        if (!shouldQueue) {
+          throw error;
+        }
+
+        // Key yang sama dipakai lagi saat sync. Aman jika server sebenarnya
+        // sudah memproses checkout tetapi response-nya hilang.
+        return await persistOfflineCheckout(payload, paymentData, idempotencyKey);
+      }
     } finally {
       options.processing.value = false;
     }
@@ -434,6 +530,7 @@ export function usePosSale(options: PosSaleOptions) {
 
     heldTransactions,
     loadingHeldTransactions,
+    offlineTransaction,
 
     buildSalePayload,
     createDraft,
