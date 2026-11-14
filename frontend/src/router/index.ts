@@ -95,9 +95,21 @@ router.beforeEach(async (to, from) => {
 
   const isOrganizationSelection = to.name === "OrganizationSelection";
 
-  // 1. Halaman yang membutuhkan autentikasi tidak dapat dibuka
-  // ketika jaringan terputus karena belum tersedia penyimpanan offline.
-  if (!navigator.onLine && to.name !== "Offline" && to.meta.requiresAuth) {
+  // POS boleh tetap dibuka saat offline jika sesi dan konteks organisasi
+  // masih tersedia di memori. Setelah reload offline, autentikasi tidak
+  // dipulihkan dari storage lokal sehingga akses tetap ditolak.
+  const offlineCapableRoute = to.name === "PharmacyPOS" || to.name === "PharmacyPOSDashboard";
+
+  if (!navigator.onLine && to.meta.requiresAuth && !offlineCapableRoute) {
+    return {
+      name: "Offline",
+      query: {
+        redirect: to.fullPath,
+      },
+    };
+  }
+
+  if (!navigator.onLine && offlineCapableRoute && !auth.initialized) {
     return {
       name: "Offline",
       query: {
@@ -138,6 +150,15 @@ router.beforeEach(async (to, from) => {
 
   try {
     if (!organizationContext.initialized) {
+      if (!navigator.onLine) {
+        return {
+          name: "Offline",
+          query: {
+            redirect: to.fullPath,
+          },
+        };
+      }
+
       await organizationContext.initialize();
     }
   } catch (error) {
