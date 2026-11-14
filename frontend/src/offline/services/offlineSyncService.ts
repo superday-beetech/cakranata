@@ -160,6 +160,7 @@ export function syncPendingSales(isAuthenticated: boolean): Promise<SyncSummary>
           localId: transaction.localId,
           message,
           state,
+          retryAfterMs: delay,
         });
 
         // Gangguan jaringan, sesi, atau server: hentikan batch agar tidak membanjiri API.
@@ -183,10 +184,28 @@ export function syncPendingSales(isAuthenticated: boolean): Promise<SyncSummary>
  * jaringan pulih, atau tab POS kembali terlihat.
  */
 export function installOfflineSync(isAuthenticated: () => boolean, router: Router): () => void {
+  let retryTimer: number | null = null;
+
   const run = (): void => {
     void syncPendingSales(isAuthenticated()).catch((error: unknown) => {
       console.error("[Offline Sync] Gagal menjalankan antrean:", error);
     });
+  };
+
+  const handleDeferred = (event: Event): void => {
+    const detail = (event as CustomEvent<{ retryAfterMs?: number }>).detail;
+    const delay = Number(detail?.retryAfterMs);
+
+    if (!Number.isFinite(delay) || delay < 0) return;
+
+    if (retryTimer !== null) {
+      window.clearTimeout(retryTimer);
+    }
+
+    retryTimer = window.setTimeout(() => {
+      retryTimer = null;
+      run();
+    }, delay + 100);
   };
 
   const handleVisibilityChange = (): void => {
@@ -197,6 +216,7 @@ export function installOfflineSync(isAuthenticated: () => boolean, router: Route
 
   window.addEventListener("online", run);
   window.addEventListener("offline:queue-updated", run);
+  window.addEventListener("offline:transaction-deferred", handleDeferred);
   document.addEventListener("visibilitychange", handleVisibilityChange);
 
   const removeAfterEach = router.afterEach((to) => {
@@ -210,6 +230,13 @@ export function installOfflineSync(isAuthenticated: () => boolean, router: Route
   return () => {
     window.removeEventListener("online", run);
     window.removeEventListener("offline:queue-updated", run);
+    window.removeEventListener("offline:transaction-deferred", handleDeferred);
+
+    if (retryTimer !== null) {
+      window.clearTimeout(retryTimer);
+      retryTimer = null;
+    }
+
     document.removeEventListener("visibilitychange", handleVisibilityChange);
     removeAfterEach();
   };
