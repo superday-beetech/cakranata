@@ -20,6 +20,8 @@ import "@/assets/themes/adminmart/js/app.min.js";
 import "@/assets/themes/adminmart/plugins/sweetalert2/sweetalert2.min.css";
 import { useSettingsStore } from "@stores/settings";
 import { useNotificationStore } from "@/stores/notification";
+import { useAuthStore } from "@/stores/auth";
+import { installOfflineSync } from "@/offline/services/offlineSyncService";
 import { installGlobalErrorHandler } from "@/composables/globalErrorHandler";
 
 const app = createApp(App);
@@ -46,6 +48,10 @@ settingsStore.initialize().catch((error: unknown) => {
 });
 
 app.use(router);
+
+// Sinkronkan antrean penjualan lokal hanya ketika sesi kasir aktif.
+const authStore = useAuthStore(pinia);
+installOfflineSync(() => authStore.isAuthenticated, router);
 
 // Daftarkan Service Worker PWA secara otomatis
 /* const updateSW = registerSW({
