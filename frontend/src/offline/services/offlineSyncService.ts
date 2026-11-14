@@ -149,18 +149,23 @@ export function syncPendingSales(isAuthenticated: boolean): Promise<SyncSummary>
         }
 
         const queueAttempts = item.attempts + 1;
-        const delay = status === 401 || status === 403
-          ? 60_000
-          : retryDelay(queueAttempts);
+        const requiresReauthentication = status === 401 || status === 403;
+        const delay = requiresReauthentication ? 0 : retryDelay(queueAttempts);
 
-        const state = await markTransactionRetry(transaction.localId, message, delay);
+        const state = await markTransactionRetry(
+          transaction.localId,
+          message,
+          delay,
+          requiresReauthentication ? Number.MAX_SAFE_INTEGER : 8,
+        );
         summary.deferred++;
 
         emitSyncEvent("offline:transaction-deferred", {
           localId: transaction.localId,
           message,
           state,
-          retryAfterMs: delay,
+          // Tunggu login/otorisasi pulih; jangan mengulang request 401/403 berkala.
+          retryAfterMs: requiresReauthentication ? undefined : delay,
         });
 
         // Gangguan jaringan, sesi, atau server: hentikan batch agar tidak membanjiri API.
