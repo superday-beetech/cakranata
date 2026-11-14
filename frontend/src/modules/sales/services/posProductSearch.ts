@@ -24,6 +24,11 @@ export async function searchPosProducts(searchKeyword: string): Promise<ProductS
     return [];
   }
 
+  // Hindari menunggu timeout API ketika browser sudah mengetahui bahwa jaringan putus.
+  if (typeof navigator !== "undefined" && !navigator.onLine) {
+    return searchCachedPosProducts(keyword);
+  }
+
   try {
     const response = await productService.getAll({
       page: 1,
