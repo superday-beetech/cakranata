@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Modules\Pharmacy\Models\Returns;
+namespace Modules\Pharmacy\Models\Return;
 
 use Modules\Pharmacy\Models\PharmacyModel;
 

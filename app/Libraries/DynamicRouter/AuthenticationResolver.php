@@ -64,6 +64,7 @@ class AuthenticationResolver
     {
         foreach ($this->policy->apiAuthenticators as $authenticator) {
             $user = match (strtolower((string) $authenticator)) {
+                'session' => $this->getSessionUser(),
                 'tokens', 'bearer' => $this->authenticateToken($this->getBearerToken()),
                 default => null,
             };

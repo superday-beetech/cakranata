@@ -16,6 +16,9 @@ declare(strict_types=1);
  *  - methodCount disimpan di cache untuk mendeteksi cache basi.
  *  - Cache key menyertakan ENVIRONMENT agar dev/prod tidak tercampur.
  *  - Exception pada settings/config di-log (tidak silent).
+ *  - Hasil scan kosong tidak di-cache.
+ *  - Controller tanpa method publik dilewati.
+ *  - Method yang berasal dari trait tidak jadi endpoint.
  */
 
 namespace App\Libraries\DynamicRouter;
@@ -102,7 +105,12 @@ class ControllerScanner
         }
 
         $result = $this->scanDirectory();
-        cache()->save($key, $result, $this->cacheTtl);
+
+        // Jangan cache hasil kosong: scan yang gagal sesaat (deploy, autoload)
+        // tidak boleh membuat seluruh endpoint modul 404 selama TTL.
+        if ($result['allowedControllers'] !== []) {
+            cache()->save($key, $result, $this->cacheTtl);
+        }
 
         return $result;
     }
@@ -184,7 +192,7 @@ class ControllerScanner
         );
 
         foreach ($iterator as $file) {
-            if (! $file->isFile() || $file->getExtension() !== 'php') {
+            if (! $file->isFile() || strtolower($file->getExtension()) !== 'php') {
                 continue;
             }
 
@@ -229,8 +237,16 @@ class ControllerScanner
                 continue;
             }
 
+            $collected = $this->collectMethods($reflection);
+
+            // Controller tanpa method publik tidak berguna dan akan membuat
+            // validasi cache (isValidShape) gagal terus.
+            if ($collected === []) {
+                continue;
+            }
+
             $classes[$short]    = $className;
-            $methodsMap[$short] = $this->collectMethods($reflection);
+            $methodsMap[$short] = $collected;
         }
 
         foreach (array_keys($duplicates) as $short) {
@@ -331,6 +347,10 @@ class ControllerScanner
                 || str_starts_with($name, '_')
                 || preg_match(self::NAME_PATTERN, $name) !== 1
                 || in_array($name, self::EXCLUDED_METHODS, true)
+                // Method dari trait (mis. ResponseTrait) dilaporkan sebagai milik
+                // class pemakai, tetapi file-nya milik trait. Method yang ditulis
+                // sendiri di class (termasuk override trait) tetap lolos.
+                || $method->getFileName() !== $reflection->getFileName()
             ) {
                 continue;
             }

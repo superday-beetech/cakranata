@@ -48,6 +48,8 @@ export interface PostSalePayload {
 
   payment_confirmed: boolean;
   collateral_note?: string | null;
+  buyer_name?: string | null;
+  buyer_phone?: string | null;
 }
 
 export interface SaleItem {

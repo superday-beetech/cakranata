@@ -17,7 +17,7 @@ class App extends BaseConfig
      * E.g., http://example.com/
      */
     // public string $baseURL = 'http://localhost/cakra/';
-    public string $baseURL = 'http://cakra.test/';
+    public string $baseURL = 'https://cakra.test/';
 
     /**
      * Allowed Hostnames in the Site URL other than the hostname in the baseURL.

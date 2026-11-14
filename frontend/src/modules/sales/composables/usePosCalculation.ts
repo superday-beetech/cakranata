@@ -95,9 +95,9 @@ export function usePosCalculation(options: PosCalculationOptions) {
     total: grandTotal.value,
 
     // Nilai pembayaran diisi oleh usePosPayment.
-    paid: 0,
+    /* paid: 0,
     change: 0,
-    receivable: grandTotal.value,
+    receivable: grandTotal.value, */
   }));
 
   return {

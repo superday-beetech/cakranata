@@ -5,7 +5,14 @@ declare(strict_types=1);
 use CodeIgniter\Router\RouteCollection;
 
 /** @var RouteCollection $routes */
-
+// $routes->get('me', 'AuthController::me');
+// $routes->group('', [
+//     'namespace' => 'Modules\Auth\Controllers\API\V1',
+// ], function ($routes) {
+//     $routes->post('login',  'AuthController::login');
+//     $routes->get('me',      'AuthController::me');
+//     $routes->post('logout', 'AuthController::logout');
+// });
 $routes->group(
     'api/v1',
     ['namespace' => 'Modules\\Auth\\Routers'],

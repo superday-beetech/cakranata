@@ -3,7 +3,7 @@ import { computed, onMounted, reactive, ref } from "vue";
 
 import api from "@/api/client";
 import { notify } from "@/utils/notification";
-import { useModalStore } from "@/composables/modal";
+import { useModalStore } from "@/composables/useModal";
 
 import purchaseOrderService from "../services/purchaseOrderService";
 

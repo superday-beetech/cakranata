@@ -48,29 +48,12 @@ const requiresConfirmation = computed(() => props.paymentMethod === "transfer" |
 // Mode sebagian: nominal harus lebih kecil dari total. Pesan hanya muncul saat salah.
 const partialOverLimit = computed(() => props.mode === "partial" && props.total > 0 && props.paymentAmount >= props.total);
 
-/* function updateAmount(event: Event): void {
-  const value = Number((event.target as HTMLInputElement).value);
-
-  emit("update:paymentAmount", Number.isFinite(value) ? Math.max(0, value) : 0);
-}
- */
-
 function setDenomination(value: number): void {
   emit("update:paymentAmount", Math.max(0, value));
 }
 
 function addDenomination(value: number): void {
   emit("update:paymentAmount", Math.max(0, props.paymentAmount) + value);
-}
-
-function exactAmount(): void {
-  if (props.mode !== "paid") return;
-
-  emit("update:paymentAmount", Math.max(0, props.total));
-}
-
-function resetAmount(): void {
-  emit("update:paymentAmount", 0);
 }
 </script>
 

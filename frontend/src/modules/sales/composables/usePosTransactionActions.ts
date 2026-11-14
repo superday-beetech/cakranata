@@ -40,6 +40,7 @@ export function usePosTransactionActions(options: UsePosTransactionActionsOption
     try {
       await options.createDraft();
       options.showSuccess("Draft penjualan berhasil dibuat.");
+      options.focusBarcode();
     } catch (error) {
       options.showError(error);
     }
@@ -120,6 +121,7 @@ export function usePosTransactionActions(options: UsePosTransactionActionsOption
       await options.loadHeldTransactions();
 
       options.showSuccess("Transaksi berhasil ditahan.");
+      options.focusBarcode();
     } catch (error) {
       options.showError(error);
     }

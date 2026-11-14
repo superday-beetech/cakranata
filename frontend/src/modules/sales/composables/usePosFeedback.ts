@@ -34,6 +34,9 @@ export function usePosFeedback() {
   }
 
   function showError(error: unknown): void {
+    clearTimeout(messageTimer);
+    messageTimer = undefined;
+
     errorMessage.value = getErrorMessage(error);
     message.value = "";
   }

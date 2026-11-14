@@ -22,7 +22,7 @@ class AuthPolicy extends BaseConfig
      * API sengaja token-only: cookie session di API membuka celah CSRF.
      */
     public array $webAuthenticators = ['session', 'cookie'];
-    public array $apiAuthenticators = ['tokens', 'bearer'];
+    public array $apiAuthenticators = ['tokens', 'bearer', 'session'];
 
     /**
      * Grup yang melewati pengecekan permission (tetap harus login & tidak banned).

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import "../styles/pos.css";
 
-import { computed, ref } from "vue";
+import { computed } from "vue";
 
 import CustomerAutocomplete from "../components/pos/posCustomerAutocomplete.vue";
 
@@ -61,13 +61,7 @@ const { isFullscreen, compactHeader, syncFullscreen, toggleFullscreen, toggleCom
 });
 const paymentInfo = usePosPaymentInfo();
 
-const { shortcutHelp, toggleShortcutHelp, closeShortcutHelp, setShortcutHelp } = usePosShortcutHelp();
-const dismissMessage = (): void => {
-  message.value = "";
-};
-const dismissError = (): void => {
-  errorMessage.value = "";
-};
+const { shortcutHelp, toggleShortcutHelp, setShortcutHelp } = usePosShortcutHelp();
 
 /* SEKSI HALAMAN & FOKUS */
 
@@ -416,247 +410,245 @@ usePosLifecycle({
 
 <template>
   <div class="pos-page">
-    <div class="pos-page">
-      <PosMenuBar :menus="menus" :clock="clockTime" :greeting="greeting" :cashier="cashierName" :workspace="workspaceLabel" :user-title="cashierTitle" :fullscreen="isFullscreen" :compact="compactHeader" @action="runAction" />
+    <PosMenuBar :menus="menus" :clock="clockTime" :greeting="greeting" :cashier="cashierName" :workspace="workspaceLabel" :user-title="cashierTitle" :fullscreen="isFullscreen" :compact="compactHeader" @action="runAction" />
 
-      <!-- HEADER -->
-      <PosHeader
-        v-if="!compactHeader"
-        :sale-number="currentSale?.sale_number"
-        :status="saleStatus"
-        :processing="processing"
-        :loading-held="loadingHeldTransactions"
-        :can-hold="!isPosted"
-        :can-new="isPosted"
-        :sound-enabled="soundEnabled"
-        @back="goToDashboard"
-        @new-transaction="handleNewTransaction"
-        @hold-transaction="handleHoldSale"
-        @refresh="handleRefreshHeld"
-        @toggle-sound="togglePosSound"
-        @toggle-shortcuts="shortcutHelp = !shortcutHelp"
-      />
+    <!-- HEADER -->
+    <PosHeader
+      v-if="!compactHeader"
+      :sale-number="currentSale?.sale_number"
+      :status="saleStatus"
+      :processing="processing"
+      :loading-held="loadingHeldTransactions"
+      :can-hold="!isPosted"
+      :can-new="isPosted"
+      :sound-enabled="soundEnabled"
+      @back="goToDashboard"
+      @new-transaction="handleNewTransaction"
+      @hold-transaction="handleHoldSale"
+      @refresh="handleRefreshHeld"
+      @toggle-sound="togglePosSound"
+      @toggle-shortcuts="shortcutHelp = !shortcutHelp"
+    />
 
-      <!-- BANTUAN SHORTCUT & NOTIFIKASI (melayang, tidak menggeser layout) -->
-      <PosShortcutHelp :visible="shortcutHelp" @close="shortcutHelp = false" />
+    <!-- BANTUAN SHORTCUT & NOTIFIKASI (melayang, tidak menggeser layout) -->
+    <PosShortcutHelp :visible="shortcutHelp" @close="shortcutHelp = false" />
 
-      <div v-if="message || errorMessage" class="pos-toasts">
-        <div v-if="message" class="alert alert-success" role="status">
-          <i class="ti ti-circle-check fs-5"></i>
-          <span>{{ message }}</span>
-          <button type="button" class="btn btn-icon btn-sm btn-soft-success" aria-label="Tutup pesan" @click="message = ''">
-            <i class="ti ti-x"></i>
-          </button>
-        </div>
-
-        <div v-if="errorMessage" class="alert alert-danger" role="alert">
-          <i class="ti ti-alert-circle fs-5"></i>
-          <span>{{ errorMessage }}</span>
-          <button type="button" class="btn btn-icon btn-sm btn-soft-danger" aria-label="Tutup pesan" @click="errorMessage = ''">
-            <i class="ti ti-x"></i>
-          </button>
-        </div>
+    <div v-if="message || errorMessage" class="pos-toasts">
+      <div v-if="message" class="alert alert-success" role="status">
+        <i class="ti ti-circle-check fs-5"></i>
+        <span>{{ message }}</span>
+        <button type="button" class="btn btn-icon btn-sm btn-soft-success" aria-label="Tutup pesan" @click="message = ''">
+          <i class="ti ti-x"></i>
+        </button>
       </div>
 
-      <main class="pos-main">
-        <!-- KIRI: INPUT & KERANJANG -->
-        <section class="pos-left">
-          <div v-if="isPosted" class="card pos-posted">
-            <i class="ti ti-circle-check text-success"></i>
+      <div v-if="errorMessage" class="alert alert-danger" role="alert">
+        <i class="ti ti-alert-circle fs-5"></i>
+        <span>{{ errorMessage }}</span>
+        <button type="button" class="btn btn-icon btn-sm btn-soft-danger" aria-label="Tutup pesan" @click="errorMessage = ''">
+          <i class="ti ti-x"></i>
+        </button>
+      </div>
+    </div>
 
-            <div>
-              <strong>Transaksi berhasil diselesaikan</strong>
-              <small>{{ currentSale?.sale_number }}</small>
-            </div>
+    <main class="pos-main">
+      <!-- KIRI: INPUT & KERANJANG -->
+      <section class="pos-left">
+        <div v-if="isPosted" class="card pos-posted">
+          <i class="ti ti-circle-check text-success"></i>
 
-            <button type="button" class="btn btn-primary btn-sm" @click="handleNewTransaction">
-              <i class="ti ti-plus"></i>
-              Transaksi baru
+          <div>
+            <strong>Transaksi berhasil diselesaikan</strong>
+            <small>{{ currentSale?.sale_number }}</small>
+          </div>
+
+          <button type="button" class="btn btn-primary btn-sm" @click="handleNewTransaction">
+            <i class="ti ti-plus"></i>
+            Transaksi baru
+          </button>
+        </div>
+
+        <div class="pos-entry">
+          <PosProductSearch
+            ref="barcodeSection"
+            v-model:keyword="keyword"
+            :results="searchResults"
+            :loading="loadingSearch"
+            :disabled="transactionLocked || processing"
+            @search="handleSearch"
+            @enter="handleBarcodeEnter"
+            @select="handleAddProduct"
+          />
+
+          <div ref="customerSection" class="card pos-customer">
+            <label class="pos-field-label">
+              <i class="ti ti-user"></i>
+              Pelanggan
+              <kbd>F2</kbd>
+            </label>
+
+            <CustomerAutocomplete :model-value="selectedCustomerId" :disabled="transactionLocked || processing" @update:model-value="handleCustomerChange" />
+          </div>
+        </div>
+
+        <PosCart
+          ref="cartSection"
+          class="pos-cart"
+          :class="{ 'is-flash': cartFlash }"
+          :items="cart"
+          :subtotal="subtotal"
+          :disabled="transactionLocked || processing"
+          shortcut="F3"
+          @quantity-change="handleQuantityChange"
+          @price-change="handlePriceChange"
+          @discount-mode-change="handleDiscountModeChange"
+          @discount-change="handleDiscountChange"
+          @note-change="handleItemNoteChange"
+          @remove="handleRemoveProduct"
+          @clear="handleClearCart"
+        />
+      </section>
+
+      <!-- TENGAH: PENYESUAIAN & RINGKASAN -->
+      <section class="pos-middle">
+        <!-- PENYESUAIAN TRANSAKSI (tab agar hemat ruang) -->
+        <section class="card pos-adjust">
+          <div class="pos-tabs" role="tablist" aria-label="Penyesuaian transaksi">
+            <button
+              v-for="(tab, index) in adjustTabItems"
+              :id="`pos-tab-${tab.id}`"
+              :key="tab.id"
+              type="button"
+              class="pos-tab"
+              :class="{ 'is-active': adjustTab === tab.id }"
+              role="tab"
+              :aria-selected="adjustTab === tab.id"
+              :aria-controls="`pos-tabpanel-${tab.id}`"
+              :aria-label="tab.fullLabel"
+              :title="tab.fullLabel"
+              :tabindex="adjustTab === tab.id ? 0 : -1"
+              @click="adjustTab = tab.id"
+              @keydown="onTabKeydown($event, index)"
+            >
+              <i :class="tab.icon"></i>
+              <span class="pos-tab-label">{{ tab.label }}</span>
+              <span v-if="tab.id === 'charges' && additionalCharges.length" class="pos-tab-badge">{{ additionalCharges.length }}</span>
+              <span v-else-if="tab.id === 'notes' && notes" class="pos-tab-badge">1</span>
+              <span v-else-if="tab.id === 'held' && heldTransactions.length" class="pos-tab-badge">{{ heldTransactions.length }}</span>
+              <kbd v-if="tab.shortcut">{{ tab.shortcut }}</kbd>
             </button>
           </div>
 
-          <div class="pos-entry">
-            <PosProductSearch
-              ref="barcodeSection"
-              v-model:keyword="keyword"
-              :results="searchResults"
-              :loading="loadingSearch"
-              :disabled="transactionLocked || processing"
-              @search="handleSearch"
-              @enter="handleBarcodeEnter"
-              @select="handleAddProduct"
-            />
+          <div class="pos-adjust-body">
+            <div v-show="adjustTab === 'discount'" id="pos-tabpanel-discount" ref="discountSection" role="tabpanel" aria-labelledby="pos-tab-discount">
+              <PosDiscountInput
+                :mode="transactionDiscountMode"
+                :value="transactionDiscountValue"
+                :base-amount="Math.max(0, subtotal - itemDiscount)"
+                :disabled="transactionLocked || processing"
+                @update:mode="handleTransactionDiscountMode"
+                @update:value="handleTransactionDiscountValue"
+              />
+            </div>
 
-            <div ref="customerSection" class="card pos-customer">
-              <label class="pos-field-label">
-                <i class="ti ti-user"></i>
-                Pelanggan
-                <kbd>F2</kbd>
-              </label>
+            <div v-show="adjustTab === 'charges'" id="pos-tabpanel-charges" ref="chargesSection" role="tabpanel" aria-labelledby="pos-tab-charges">
+              <PosAdditionalCharges :charges="additionalCharges" :disabled="transactionLocked || processing" @add="addCharge" @update="updateCharge" @remove="removeCharge" />
+            </div>
 
-              <CustomerAutocomplete :model-value="selectedCustomerId" :disabled="transactionLocked || processing" @update:model-value="handleCustomerChange" />
+            <div v-show="adjustTab === 'notes'" id="pos-tabpanel-notes" class="h-100" role="tabpanel" aria-labelledby="pos-tab-notes">
+              <PosTransactionNotes v-model="notes" :disabled="transactionLocked || processing" />
+            </div>
+
+            <div v-show="adjustTab === 'held'" id="pos-tabpanel-held" role="tabpanel" aria-labelledby="pos-tab-held">
+              <PosHeldTransactions :transactions="heldTransactions" :loading="loadingHeldTransactions" :disabled="processing" @refresh="handleRefreshHeld" @resume="handleResumeSale" />
             </div>
           </div>
-
-          <PosCart
-            ref="cartSection"
-            class="pos-cart"
-            :class="{ 'is-flash': cartFlash }"
-            :items="cart"
-            :subtotal="subtotal"
-            :disabled="transactionLocked || processing"
-            shortcut="F3"
-            @quantity-change="handleQuantityChange"
-            @price-change="handlePriceChange"
-            @discount-mode-change="handleDiscountModeChange"
-            @discount-change="handleDiscountChange"
-            @note-change="handleItemNoteChange"
-            @remove="handleRemoveProduct"
-            @clear="handleClearCart"
-          />
         </section>
 
-        <!-- TENGAH: PENYESUAIAN & RINGKASAN -->
-        <section class="pos-middle">
-          <!-- PENYESUAIAN TRANSAKSI (tab agar hemat ruang) -->
-          <section class="card pos-adjust">
-            <div class="pos-tabs" role="tablist" aria-label="Penyesuaian transaksi">
-              <button
-                v-for="(tab, index) in adjustTabItems"
-                :id="`pos-tab-${tab.id}`"
-                :key="tab.id"
-                type="button"
-                class="pos-tab"
-                :class="{ 'is-active': adjustTab === tab.id }"
-                role="tab"
-                :aria-selected="adjustTab === tab.id"
-                :aria-controls="`pos-tabpanel-${tab.id}`"
-                :aria-label="tab.fullLabel"
-                :title="tab.fullLabel"
-                :tabindex="adjustTab === tab.id ? 0 : -1"
-                @click="adjustTab = tab.id"
-                @keydown="onTabKeydown($event, index)"
-              >
-                <i :class="tab.icon"></i>
-                <span class="pos-tab-label">{{ tab.label }}</span>
-                <span v-if="tab.id === 'charges' && additionalCharges.length" class="pos-tab-badge">{{ additionalCharges.length }}</span>
-                <span v-else-if="tab.id === 'notes' && notes" class="pos-tab-badge">1</span>
-                <span v-else-if="tab.id === 'held' && heldTransactions.length" class="pos-tab-badge">{{ heldTransactions.length }}</span>
-                <kbd v-if="tab.shortcut">{{ tab.shortcut }}</kbd>
-              </button>
-            </div>
+        <PosPanel title="Ringkasan" icon="ti ti-receipt" tone="success">
+          <PosSummary :subtotal="subtotal" :item-discount="itemDiscount" :transaction-discount="transactionDiscount" :dpp="dpp" :tax="taxAmount" :additional-charges="additionalChargesTotal" :total="grandTotal" :show-total="false" />
 
-            <div class="pos-adjust-body">
-              <div v-show="adjustTab === 'discount'" id="pos-tabpanel-discount" ref="discountSection" role="tabpanel" aria-labelledby="pos-tab-discount">
-                <PosDiscountInput
-                  :mode="transactionDiscountMode"
-                  :value="transactionDiscountValue"
-                  :base-amount="Math.max(0, subtotal - itemDiscount)"
-                  :disabled="transactionLocked || processing"
-                  @update:mode="handleTransactionDiscountMode"
-                  @update:value="handleTransactionDiscountValue"
-                />
-              </div>
+          <div class="pos-tax-row">
+            <label><i class="ti ti-percentage"></i>Atur pajak</label>
 
-              <div v-show="adjustTab === 'charges'" id="pos-tabpanel-charges" ref="chargesSection" role="tabpanel" aria-labelledby="pos-tab-charges">
-                <PosAdditionalCharges :charges="additionalCharges" :disabled="transactionLocked || processing" @add="addCharge" @update="updateCharge" @remove="removeCharge" />
-              </div>
+            <PosTaxInput :mode="taxMode" :value="taxValue" :base-amount="dpp" :disabled="transactionLocked || processing" :show-preview="false" @update:mode="handleTaxMode" @update:value="handleTaxValue" />
+          </div>
+        </PosPanel>
+      </section>
 
-              <div v-show="adjustTab === 'notes'" id="pos-tabpanel-notes" class="h-100" role="tabpanel" aria-labelledby="pos-tab-notes">
-                <PosTransactionNotes v-model="notes" :disabled="transactionLocked || processing" />
-              </div>
-
-              <div v-show="adjustTab === 'held'" id="pos-tabpanel-held" role="tabpanel" aria-labelledby="pos-tab-held">
-                <PosHeldTransactions :transactions="heldTransactions" :loading="loadingHeldTransactions" :disabled="processing" @refresh="handleRefreshHeld" @resume="handleResumeSale" />
-              </div>
-            </div>
-          </section>
-
-          <PosPanel title="Ringkasan" icon="ti ti-receipt" tone="success">
-            <PosSummary :subtotal="subtotal" :item-discount="itemDiscount" :transaction-discount="transactionDiscount" :dpp="dpp" :tax="taxAmount" :additional-charges="additionalChargesTotal" :total="grandTotal" :show-total="false" />
-
-            <div class="pos-tax-row">
-              <label><i class="ti ti-percentage"></i>Atur pajak</label>
-
-              <PosTaxInput :mode="taxMode" :value="taxValue" :base-amount="dpp" :disabled="transactionLocked || processing" :show-preview="false" @update:mode="handleTaxMode" @update:value="handleTaxValue" />
+      <!-- KANAN: PEMBAYARAN & AKSI -->
+      <aside class="pos-right">
+        <div class="pos-right-scroll">
+          <PosPanel ref="paymentSection" title="Pembayaran" icon="ti ti-wallet" tone="primary" shortcut="F6">
+            <div ref="paymentInput">
+              <PosPayment
+                :mode="settlementMode"
+                :payment-method="paymentMethod"
+                :payment-amount="paymentAmount"
+                :total="payableTotal"
+                :due-date="dueDate"
+                :due-date-error="dueDateError"
+                :reference-number="paymentReferenceNumber"
+                :payment-confirmed="paymentConfirmed"
+                :disabled="processing || isPosted"
+                :bank-name="paymentInfo.bankName"
+                :account-number="paymentInfo.accountNumber"
+                :account-holder="paymentInfo.accountHolder"
+                :qris-image-url="paymentInfo.qrisImageUrl"
+                @update:mode="handleSettlementMode"
+                @update:payment-method="handlePaymentMethod"
+                @update:payment-amount="handlePaymentAmount"
+                @update:due-date="handleDueDate"
+                @update:reference-number="handleReferenceNumber"
+                @update:payment-confirmed="handlePaymentConfirmation"
+                @exact="handleExactPayment"
+                @reset="handleResetPayment"
+              />
+              <PosCreditBuyer v-if="needsBuyerInfo" v-model:buyerName="buyerName" v-model:buyerPhone="buyerPhone" v-model:collateralNote="collateralNote" :disabled="processing || isPosted" />
             </div>
           </PosPanel>
-        </section>
+        </div>
 
-        <!-- KANAN: PEMBAYARAN & AKSI -->
-        <aside class="pos-right">
-          <div class="pos-right-scroll">
-            <PosPanel ref="paymentSection" title="Pembayaran" icon="ti ti-wallet" tone="primary" shortcut="F6">
-              <div ref="paymentInput">
-                <PosPayment
-                  :mode="settlementMode"
-                  :payment-method="paymentMethod"
-                  :payment-amount="paymentAmount"
-                  :total="payableTotal"
-                  :due-date="dueDate"
-                  :due-date-error="dueDateError"
-                  :reference-number="paymentReferenceNumber"
-                  :payment-confirmed="paymentConfirmed"
-                  :disabled="processing || isPosted"
-                  :bank-name="paymentInfo.bankName"
-                  :account-number="paymentInfo.accountNumber"
-                  :account-holder="paymentInfo.accountHolder"
-                  :qris-image-url="paymentInfo.qrisImageUrl"
-                  @update:mode="handleSettlementMode"
-                  @update:payment-method="handlePaymentMethod"
-                  @update:payment-amount="handlePaymentAmount"
-                  @update:due-date="handleDueDate"
-                  @update:reference-number="handleReferenceNumber"
-                  @update:payment-confirmed="handlePaymentConfirmation"
-                  @exact="handleExactPayment"
-                  @reset="handleResetPayment"
-                />
-                <PosCreditBuyer v-if="needsBuyerInfo" v-model:buyerName="buyerName" v-model:buyerPhone="buyerPhone" v-model:collateralNote="collateralNote" :disabled="processing || isPosted" />
-              </div>
-            </PosPanel>
-          </div>
+        <!-- TOTAL & AKSI: selalu terlihat di bawah -->
+        <section class="card pos-final">
+          <PosTotalPanel :total="payableTotal" :paid="appliedAmount" :change="changeAmount" :remaining="remainingAmount" :settlement-label="settlementLabel" />
 
-          <!-- TOTAL & AKSI: selalu terlihat di bawah -->
-          <section class="card pos-final">
-            <PosTotalPanel :total="payableTotal" :paid="appliedAmount" :change="changeAmount" :remaining="remainingAmount" :settlement-label="settlementLabel" />
+          <div class="pos-final-actions">
+            <button v-if="!isDraft && !isPosted" type="button" class="btn btn-success btn-lg" :disabled="!canCheckout" @click="handleProcessSale">
+              <span v-if="processing" class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+              <i v-else class="ti ti-check"></i>
+              Bayar &amp; selesaikan
+              <kbd>F12</kbd>
+            </button>
 
-            <div class="pos-final-actions">
-              <button v-if="!isDraft && !isPosted" type="button" class="btn btn-success btn-lg" :disabled="!canCheckout" @click="handleProcessSale">
+            <template v-else-if="isDraft">
+              <button type="button" class="btn btn-success btn-lg" :disabled="!canPostSale || !isPaymentValid || processing" @click="handlePostSale">
                 <span v-if="processing" class="spinner-border spinner-border-sm" aria-hidden="true"></span>
                 <i v-else class="ti ti-check"></i>
-                Bayar &amp; selesaikan
+                Posting penjualan
                 <kbd>F12</kbd>
               </button>
 
-              <template v-else-if="isDraft">
-                <button type="button" class="btn btn-success btn-lg" :disabled="!canPostSale || !isPaymentValid || processing" @click="handlePostSale">
-                  <span v-if="processing" class="spinner-border spinner-border-sm" aria-hidden="true"></span>
-                  <i v-else class="ti ti-check"></i>
-                  Posting penjualan
-                  <kbd>F12</kbd>
-                </button>
-
-                <button type="button" class="btn btn-outline-danger" :disabled="processing" @click="handleCancelDraft">
-                  <i class="ti ti-x"></i>
-                  Batalkan draft
-                </button>
-              </template>
-
-              <button v-else type="button" class="btn btn-primary btn-lg" :disabled="processing" @click="handleNewTransaction">
-                <i class="ti ti-plus"></i>
-                Transaksi baru
-                <kbd>F11</kbd>
+              <button type="button" class="btn btn-outline-danger" :disabled="processing" @click="handleCancelDraft">
+                <i class="ti ti-x"></i>
+                Batalkan draft
               </button>
+            </template>
 
-              <small v-if="isDraft">
-                <i class="ti ti-info-circle"></i>
-                Transaksi tertahan dilanjutkan. Selesaikan pembayaran atau batalkan draft.
-              </small>
-            </div>
-          </section>
-        </aside>
-      </main>
-      <PosDock v-if="dock.visible" :open="dock.open" :edge="dock.edge" :offset="dock.offset" :items="dockItems" @action="onDockAction" @toggle="toggleDock" @move="onDockMove" />
-    </div>
+            <button v-else type="button" class="btn btn-primary btn-lg" :disabled="processing" @click="handleNewTransaction">
+              <i class="ti ti-plus"></i>
+              Transaksi baru
+              <kbd>F11</kbd>
+            </button>
+
+            <small v-if="isDraft">
+              <i class="ti ti-info-circle"></i>
+              Transaksi tertahan dilanjutkan. Selesaikan pembayaran atau batalkan draft.
+            </small>
+          </div>
+        </section>
+      </aside>
+    </main>
+    <PosDock v-if="dock.visible" :open="dock.open" :edge="dock.edge" :offset="dock.offset" :items="dockItems" @action="onDockAction" @toggle="toggleDock" @move="onDockMove" />
   </div>
 </template>

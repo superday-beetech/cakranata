@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import api from "@/api/client";
-import { useModalStore } from "@/composables/modal";
+import { useModalStore } from "@/composables/useModal";
 import { notify } from "@/utils/notification";
 
 import financeService from "../services/financeService";

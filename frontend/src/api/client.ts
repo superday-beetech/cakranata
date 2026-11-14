@@ -1,3 +1,4 @@
+/*frontend/src/api/client.ts*/
 import axios, { type AxiosError, type InternalAxiosRequestConfig } from "axios";
 
 import { env } from "@/config/env";
@@ -6,11 +7,11 @@ import type { ApiResponse } from "@/types/types";
 const api = axios.create({
   baseURL: env.apiBaseURL,
   withCredentials: true,
+  timeout: 15000,
   headers: {
     Accept: "application/json",
     "Content-Type": "application/json",
     "X-Requested-With": "XMLHttpRequest",
-    "X-ACN-Auth-Mode": "session",
   },
 });
 
@@ -89,9 +90,25 @@ api.interceptors.response.use(
       );
     }
 
+    if (error.response?.status === 401) {
+      window.dispatchEvent(
+        new CustomEvent("auth:unauthenticated", {
+          detail: {
+            status: error.response.status,
+          },
+        }),
+      );
+    }
+
     // Forbidden
     if (error.response?.status === 403) {
-      window.dispatchEvent(new CustomEvent("auth:forbidden"));
+      window.dispatchEvent(
+        new CustomEvent("auth:forbidden", {
+          detail: {
+            status: error.response.status,
+          },
+        }),
+      );
     }
 
     // Server Error

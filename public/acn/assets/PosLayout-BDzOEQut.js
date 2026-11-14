@@ -1,1 +1,0 @@
-import{O as e,g as t,m as n,nt as r,r as i,s as a,u as o}from"./runtime-core.esm-bundler-eCuLVqj1.js";import{f as s}from"./main-CWj0r2Ld.js";import{n as c,r as l,t as u}from"./ModalHost-BZ4i73JL.js";var d={class:`pos-layout`},f=t({__name:`PosLayout`,setup(t){return(t,f)=>(e(),o(i,null,[a(`div`,d,[n(r(s))]),n(l),n(c),n(u)],64))}});export{f as default};

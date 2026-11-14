@@ -12,7 +12,7 @@ class ApiRouter extends DynamicRouterBase
 
     protected string $moduleNamespace = 'Modules\\RouteRegistry\\Controllers\\API\\V1';
 
-    protected string $defaultController = 'RouteRegistryController';
+    protected string $defaultController = 'RouteRegistryApiController';
 
     /*  public function route($seg1 = '', $seg2 = null, ...$params)
     {

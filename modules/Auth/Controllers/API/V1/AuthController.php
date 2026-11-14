@@ -20,8 +20,6 @@ class AuthController extends ApiController
         $this->userService = AuthServices::userService();
     }
 
-    public function index() {}
-    public function masuk() {}
     public function login()
     {
 

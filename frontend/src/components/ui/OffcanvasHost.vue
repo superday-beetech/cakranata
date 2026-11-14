@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, watch } from "vue";
-import { useOffcanvasStore } from "@/composables/offcanvas";
+import { useOffcanvasStore } from "@/composables/useOffcanvas";
 
 const offcanvas = useOffcanvasStore();
 

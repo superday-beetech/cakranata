@@ -1,3 +1,4 @@
+/* frontend/src/router/index.ts */
 import { createRouter, createWebHistory, type RouteRecordRaw } from "vue-router";
 
 import pinia from "@/stores";
@@ -5,7 +6,7 @@ import pinia from "@/stores";
 import { useAuthStore } from "@/stores/auth";
 import { usePermissionStore } from "@/stores/permission";
 // Otomatis menemukan seluruh router.ts di setiap module.
-import { useOrganizationContextStore } from "@/modules/organization/stores/organizationContextStore";
+import { useOrganizationContextStore } from "@/stores/organization";
 const moduleRouters = import.meta.glob<RouteRecordRaw[]>("../modules/*/router.ts", {
   eager: true,
   import: "default",
@@ -45,11 +46,16 @@ const routes: RouteRecordRaw[] = [
       requiresAuth: true,
     },
   },
-
+  {
+    path: "/offline",
+    name: "Offline",
+    component: () => import("@/components/OfflineView.vue"),
+    meta: { layout: "auth" },
+  },
   {
     path: "/organization/select",
     name: "OrganizationSelection",
-    component: () => import("@/modules/organization/master/views/OrganizationSelectionView.vue"),
+    component: () => import("@/modules/auth/views/OrganizationSelectionView.vue"),
     meta: {
       layout: "backend",
       requiresAuth: true,
@@ -78,27 +84,32 @@ const router = createRouter({
   },
 });
 
-router.beforeEach(async (to) => {
+router.beforeEach(async (to, from) => {
   const auth = useAuthStore(pinia);
 
   const isOrganizationSelection = to.name === "OrganizationSelection";
 
-  // Jika user sudah login dan membuka halaman guest.
+  // 1. Cek offline lebih dulu — return langsung, jangan lanjut.
+  if (to.meta.requiresOnline && !navigator.onLine) {
+    return { name: "Offline" };
+  }
+
+  // 2. Guest-only: user sudah login → ke Dashboard.
   if (to.meta.guestOnly && auth.isAuthenticated) {
     return { name: "Dashboard" };
   }
 
-  // Halaman publik tidak memerlukan pemeriksaan API.
+  // 3. Halaman publik tidak perlu cek API.
   if (to.name === "Home" || to.name === "Login") {
     return true;
   }
 
-  // 1. Pastikan session autentikasi sudah diperiksa.
+  // 4. Pastikan session autentikasi sudah diperiksa.
   if (!auth.initialized) {
     await auth.initializeSession();
   }
 
-  // 2. Periksa autentikasi.
+  // 5. Periksa autentikasi.
   if (to.meta.requiresAuth && !auth.isAuthenticated) {
     return {
       path: "/login",
@@ -110,7 +121,7 @@ router.beforeEach(async (to) => {
     return true;
   }
 
-  // 3. Inisialisasi Organization Context.
+  // 6. Inisialisasi Organization Context.
   const organizationContext = useOrganizationContextStore(pinia);
 
   try {
@@ -120,8 +131,6 @@ router.beforeEach(async (to) => {
   } catch (error) {
     console.error("[Organization Context] Initialization failed:", error);
 
-    // Arahkan ke halaman pemilihan organisasi agar
-    // pengguna dapat melihat pesan kesalahan.
     if (!isOrganizationSelection) {
       return { name: "OrganizationSelection" };
     }
@@ -129,15 +138,12 @@ router.beforeEach(async (to) => {
     return true;
   }
 
-  // 4. User belum memiliki organisasi aktif.
-  // Semua halaman backend diarahkan ke halaman pemilihan.
+  // 7. User belum punya organisasi aktif.
   if (!organizationContext.hasContext && !isOrganizationSelection) {
     return { name: "OrganizationSelection" };
   }
 
-  // 5. Pemeriksaan permission.
-  // Halaman pemilihan organisasi tidak membutuhkan
-  // permission modul bisnis.
+  // 8. Pemeriksaan permission.
   if (!isOrganizationSelection && to.meta.permission) {
     const permission = usePermissionStore(pinia);
 

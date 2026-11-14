@@ -39,10 +39,15 @@ class RouteResolver
             return $this->resolveShortcut($slug, $seg2, $params);
         }
 
+
         $rest = $this->collectRemainingSegments($seg2, $params);
 
         if (($r = $this->resolveRestful($controller, $verb, $rest)) !== null) {
-            return [$controller, $r[0], array_slice($rest, $r[1])];
+            [$method, $consumed] = $r;
+            // resolveRestful mengonsumsi $rest[0..$consumed-1] sebagai parameter method.
+            // Untuk show/update/delete, ini adalah id. Untuk index/create, kosong.
+            $params = array_slice($rest, 0, $consumed);
+            return [$controller, $method, $params];
         }
         if (($r = $this->resolveCustomSuffix($controller, $verb, $rest)) !== null) {
             [$method, $id, $consumed] = $r;
@@ -198,9 +203,9 @@ class RouteResolver
     private function resolveShortcut(string $slug, ?string $seg2, array $params): array
     {
         $requested = $slug !== '' ? $slug : 'index';
-
         // Prioritas 1: defaultController
         $m = $this->resolveMethodByVerb($this->defaultController, $requested);
+
         if ($m !== null) {
             return [
                 $this->defaultController,

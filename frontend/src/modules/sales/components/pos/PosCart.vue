@@ -2,10 +2,12 @@
 import { formatCurrency } from "../../utils/format";
 import PosPanel from "./PosPanel.vue";
 import PosCartItem from "./PosCartItem.vue";
+import PosConfirmDialog from "./PosConfirmDialog.vue";
 
+import { usePosHost } from "../../composables/usePosHost";
 import type { PosCartItem as CartItem, DiscountMode } from "../../types/sales";
 
-defineProps<{
+const props = defineProps<{
   items: CartItem[];
   subtotal: number;
   disabled?: boolean;
@@ -22,17 +24,35 @@ const emit = defineEmits<{
   clear: [];
 }>();
 
-</script>
+const host = usePosHost();
 
+function handleClearCart(): void {
+  if (!props.items.length || props.disabled) return;
+
+  // Membuka modal hanya dengan 3 argumen (sesuai interface usePosHost Anda)
+  host.openModal(PosConfirmDialog, {
+    title: "Konfirmasi Hapus",
+    size: "sm",
+    props: {
+      message: "Semua produk dalam keranjang akan dihapus. Tindakan ini tidak dapat dibatalkan.",
+      confirmText: "Ya, Kosongkan",
+      confirmClass: "btn-danger",
+      // KITA TANGKAP EVENT SELECT DI SINI:
+      onSelect: (confirmed: boolean) => {
+        if (confirmed) {
+          emit("clear");
+        }
+      },
+    },
+  });
+}
+</script>
 <template>
   <PosPanel title="Keranjang" :subtitle="`${items.length} jenis produk dalam transaksi`" icon="ti ti-shopping-cart" tone="info" :shortcut="shortcut" flush scroll>
     <template #actions>
       <span class="pos-count">{{ items.length }} item</span>
 
-      <button type="button" class="btn btn-soft-danger btn-sm" :disabled="!items.length || disabled" @click="emit('clear')">
-        <i class="ti ti-trash"></i>
-        Kosongkan
-      </button>
+      <button type="button" class="btn btn-soft-danger btn-sm" :disabled="!items.length || disabled" @click="handleClearCart"><i class="ti ti-trash"></i> Kosongkan</button>
     </template>
 
     <div v-if="!items.length" class="pos-empty">

@@ -452,9 +452,9 @@ export function usePos(options: UsePosOptions) {
   }
 
   function payExact(): void {
-    if (processing.value) return;
-
     paymentAmountTouched.value = false;
+
+    if (processing.value) return;
 
     payExactAmount();
   }

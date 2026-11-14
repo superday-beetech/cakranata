@@ -8,6 +8,7 @@ use CodeIgniter\Exceptions\PageNotFoundException;
 
 class ErpSpaController extends BaseController
 {
+
     public function index()
     {
         $uri = trim(service('uri')->getPath(), '/');
@@ -19,8 +20,122 @@ class ErpSpaController extends BaseController
             return redirect()->to(site_url('acn/dashboard'));
         }
 
+        $manifestPath = FCPATH . 'acn/.vite/manifest.json';
+        $hasManifest  = is_file($manifestPath);
+
+        // Auto-deteksi: dev server hidup? (hanya dicek di non-production)
+        $isDev = ENVIRONMENT !== 'production' && $this->isViteDevServerRunning();
+        log_message('debug', 'VITE: env=' . ENVIRONMENT . ' dev=' . var_export($isDev, true) . ' manifest=' . var_export($hasManifest, true));
+        // ==== KEPUTUSAN OTOMATIS ====
+        // 1. Dev server hidup → pakai view dev (load dari :5173)
+        if ($isDev) {
+            return view('acn_dev');
+        }
+        if (! $hasManifest) {
+            throw PageNotFoundException::forPageNotFound(
+                'ERP frontend belum dibuild. Jalankan npm run build terlebih dahulu.'
+            );
+        }
+        $manifest = json_decode(
+            file_get_contents($manifestPath),
+            true,
+            512,
+            JSON_THROW_ON_ERROR
+        );
+        $entry = $manifest['src/main.ts'] ?? null;
+        // 2. Tidak ada dev server tapi manifest ada → build/preview
+
+        print_r($this->isViteDevServerRunning());
+        exit;
+        if ($hasManifest) {
+            return view('acn_app', [
+                'entry' => $entry,
+                'manifest' => $manifestPath,
+            ]);
+        }
+
+        // 3. Dua-duanya tidak ada → error jelas
+        throw PageNotFoundException::forPageNotFound(
+            'ERP frontend belum dibuild. Jalankan `npm run dev` atau `npm run build` dulu.'
+        );
+    }
+
+    private function isViteDevServerRunning(): bool
+    {
+        $port = 5173;
+
+        foreach (['127.0.0.1', 'localhost', '::1'] as $host) {
+            $conn = @fsockopen($host, $port, $errno, $errstr, 0.2);
+            if (is_resource($conn)) {
+                fclose($conn);
+                return true;
+            }
+        }
+        return false;
+    }
+
+
+    /* public function index()
+    {
+        $mode = $this->request->getGet('mode');
+        $uri = trim(service('uri')->getPath(), '/');
+
+        if (
+            auth()->loggedIn()
+            && in_array($uri, ['acn', 'acn/login'], true)
+        ) {
+            return redirect()->to(site_url('acn/dashboard'));
+        }
+
+        $manifestPath = FCPATH . 'acn/.vite/manifest.json';
+        $hasManifest = is_file($manifestPath);
+
+        // Jika mode=d dipilih DAN manifest belum dibuild (murni development harian)
+        if (is_null($mode) && ! $hasManifest) {
+            return view('acn_dev');
+        }
+   if (! $hasManifest) {
+            throw PageNotFoundException::forPageNotFound(
+                'ERP frontend belum dibuild. Jalankan npm run build terlebih dahulu.'
+            );
+        }
+
+        $manifest = json_decode(
+            file_get_contents($manifestPath),
+            true,
+            512,
+            JSON_THROW_ON_ERROR
+        );
+
+        $entry = $manifest['src/main.ts'] ?? null;
+
+        if (! is_array($entry) || empty($entry['isEntry'])) {
+            throw PageNotFoundException::forPageNotFound(
+                'Entry point Vue tidak ditemukan.'
+            );
+        }
+
+        return view('acn_prod', [
+            'entry' => $entry,
+            'manifest' => $manifest,
+        ]);
+    } */
+
+    /* public function index()
+    {
+        $mode = $this->request->getGet('mode');
+        $uri = trim(service('uri')->getPath(), '/');
+
+        if (
+            auth()->loggedIn()
+            && in_array($uri, ['acn', 'acn/login'], true)
+        ) {
+            return redirect()->to(site_url('acn/dashboard'));
+        }
+
         // Development: Vite Dev Server.
-        if (ENVIRONMENT === 'development') {
+        // if (ENVIRONMENT === 'development') {
+        if (is_null($mode)) {
             return view('acn_dev');
         }
 
@@ -52,5 +167,5 @@ class ErpSpaController extends BaseController
             'entry' => $entry,
             'manifest' => $manifest,
         ]);
-    }
+    }*/
 }

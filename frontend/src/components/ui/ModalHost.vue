@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, watch } from "vue";
 
-import { useModalStore } from "@/composables/modal";
+import { useModalStore } from "@/composables/useModal";
 
 const modalStore = useModalStore();
 

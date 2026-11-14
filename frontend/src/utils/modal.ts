@@ -1,21 +1,17 @@
-
-import {
-    useModalStore,
-    type ModalOptions,
-} from "@/composables/modal";
+import { useModalStore, type ModalOptions } from "@/composables/useModal";
 
 import pinia from "@/stores";
 
 export const modal = {
-    open(options: ModalOptions) {
-        return useModalStore(pinia).open(options);
-    },
+  open(options: ModalOptions) {
+    return useModalStore(pinia).open(options);
+  },
 
-    close() {
-        return useModalStore(pinia).close();
-    },
+  close() {
+    return useModalStore(pinia).close();
+  },
 
-    reset() {
-        return useModalStore(pinia).reset();
-    },
+  reset() {
+    return useModalStore(pinia).reset();
+  },
 };

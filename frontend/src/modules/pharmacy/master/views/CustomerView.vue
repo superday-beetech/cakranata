@@ -6,7 +6,7 @@ import customerService, { type Customer, type CustomerPagination } from "../serv
 import CustomerFormModal from "../components/CustomerFormModal.vue";
 import CustomerDetailModal from "../components/CustomerDetailModal.vue";
 
-import { useModalStore } from "@/composables/modal";
+import { useModalStore } from "@/composables/useModal";
 import { notify } from "@/utils/notification";
 
 const modalStore = useModalStore();

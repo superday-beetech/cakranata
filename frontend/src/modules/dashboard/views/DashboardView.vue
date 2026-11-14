@@ -1,12 +1,6 @@
 <script setup lang="ts">
-import { notify } from "@/utils/notification";
+import { computed, ref, watch, onMounted } from "vue";
 
-// const notify = useNotificationStore();
-
-// notify.success("Selamat.");
-// notify.error("Gagal menyimpan data.");
-// notify.warning("Periksa kembali formulir.");
-// notify.info("Sedang memproses data.");
 import { offcanvas } from "@/utils/offcanvas";
 import UserDetail from "@/modules/dashboard/views/UserDetail.vue";
 import { modal } from "@/utils/modal";
@@ -33,7 +27,8 @@ function openUserForm() {
   });
 }
 
-const siteName = computed(() => setting("App.siteName"));
+// const siteName = computed(() => setting("App.siteName"));
+const siteName = "Cakra Nata";
 </script>
 <template>
   <h1 class="mb-4">Selamat datang di {{ siteName }}</h1>

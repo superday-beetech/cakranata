@@ -2,7 +2,7 @@
 import { computed, onMounted, ref, watch } from "vue";
 
 import { notify } from "@/utils/notification";
-import { useModalStore } from "@/composables/modal";
+import { useModalStore } from "@/composables/useModal";
 
 import organizationService from "../services/organizationService";
 import organizationUnitService from "../services/organizationUnitService";

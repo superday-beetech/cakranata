@@ -1,0 +1,474 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#4f46e5" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Koneksi Terputus — Cakra Enterprise</title>
+    <style>
+      :root {
+        --brand: #4f46e5;
+        --brand-dark: #4338ca;
+        --brand-soft: #eef2ff;
+        --focus: #c7d2fe;
+        --text: #1e293b;
+        --muted: #64748b;
+        --subtle: #94a3b8;
+        --bg: #f8fafc;
+        --surface: #fff;
+        --border: #e2e8f0;
+        --hover: #f1f5f9;
+        --success: #16a34a;
+        --success-soft: #dcfce7;
+        --danger: #dc2626;
+        --danger-soft: #fef2f2;
+        --shadow: 0 10px 25px -5px rgb(15 23 42 / 0.1), 0 4px 10px -4px rgb(15 23 42 / 0.05);
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --brand: #6366f1;
+          --brand-dark: #818cf8;
+          --brand-soft: #1e1b4b;
+          --focus: #4338ca;
+          --text: #e2e8f0;
+          --muted: #94a3b8;
+          --subtle: #64748b;
+          --bg: #0f172a;
+          --surface: #1e293b;
+          --border: #334155;
+          --hover: #273449;
+          --success: #4ade80;
+          --success-soft: #14532d;
+          --danger: #f87171;
+          --danger-soft: #450a0a;
+          --shadow: none;
+        }
+      }
+
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+
+      body {
+        display: grid;
+        place-items: center;
+        min-height: 100vh;
+        min-height: 100dvh;
+        margin: 0;
+        padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right)) max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
+        background: var(--bg);
+        color: var(--text);
+        font-family:
+          system-ui,
+          -apple-system,
+          "Segoe UI",
+          Roboto,
+          sans-serif;
+        text-align: center;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      .card {
+        width: 100%;
+        max-width: 420px;
+        padding: 2.5rem 2rem;
+        border-radius: 16px;
+        background: var(--surface);
+        box-shadow: var(--shadow);
+      }
+
+      /* ---------- Ikon ---------- */
+      .icon {
+        display: grid;
+        place-items: center;
+        width: 72px;
+        height: 72px;
+        margin: 0 auto 1.25rem;
+        border-radius: 50%;
+        background: var(--brand-soft);
+        color: var(--brand);
+      }
+
+      .icon svg {
+        width: 36px;
+        height: 36px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.8;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+
+      /* ---------- Teks ---------- */
+      h1 {
+        margin: 0 0 0.5rem;
+        font-size: 1.35rem;
+        font-weight: 700;
+      }
+
+      .desc {
+        margin: 0 0 1.5rem;
+        color: var(--muted);
+        font-size: 0.95rem;
+        line-height: 1.6;
+      }
+
+      .brand {
+        color: var(--brand);
+        font-weight: 600;
+      }
+
+      .hint {
+        margin: 1.25rem 0 0;
+        color: var(--subtle);
+        font-size: 0.8rem;
+        line-height: 1.5;
+      }
+
+      /* ---------- Status ---------- */
+      .status {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        margin-bottom: 1.5rem;
+        padding: 0.35rem 0.75rem;
+        border-radius: 999px;
+        background: var(--danger-soft);
+        color: var(--danger);
+        font-size: 0.8rem;
+        font-weight: 600;
+      }
+
+      .status::before {
+        content: "";
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: currentColor;
+        animation: pulse 1.5s ease-in-out infinite;
+      }
+
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 1;
+          transform: scale(1);
+        }
+        50% {
+          opacity: 0.4;
+          transform: scale(0.75);
+        }
+      }
+
+      /* ---------- Tombol ---------- */
+      .actions {
+        display: flex;
+        flex-direction: column;
+        gap: 0.625rem;
+      }
+
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        padding: 0.75rem 1.25rem;
+        border: 1px solid transparent;
+        border-radius: 10px;
+        font: inherit;
+        font-size: 0.95rem;
+        font-weight: 600;
+        text-decoration: none;
+        cursor: pointer;
+        transition:
+          background-color 0.15s ease,
+          border-color 0.15s ease;
+      }
+
+      .btn:focus-visible {
+        outline: 3px solid var(--focus);
+        outline-offset: 2px;
+      }
+
+      .btn-primary {
+        background: var(--brand);
+        color: #fff;
+      }
+
+      .btn-primary:hover:not(:disabled) {
+        background: var(--brand-dark);
+      }
+
+      .btn-primary:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+
+      .btn-secondary {
+        border-color: var(--border);
+        background: transparent;
+        color: var(--text);
+      }
+
+      .btn-secondary:hover {
+        background: var(--hover);
+      }
+
+      /* ---------- State: online ---------- */
+      [data-state="online"] .icon {
+        background: var(--success-soft);
+        color: var(--success);
+      }
+
+      [data-state="online"] .status {
+        background: var(--success-soft);
+        color: var(--success);
+      }
+
+      /* Hanya tampilkan elemen sesuai state aktif */
+      [data-state="offline"] [data-show="online"],
+      [data-state="online"] [data-show="offline"] {
+        display: none;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .status::before {
+          animation: none;
+        }
+        .btn {
+          transition: none;
+        }
+      }
+
+      @media (max-width: 480px) {
+        .card {
+          padding: 2rem 1.5rem;
+        }
+        h1 {
+          font-size: 1.2rem;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="card" id="app" data-state="offline">
+      <div class="icon" aria-hidden="true">
+        <svg data-show="offline" viewBox="0 0 24 24">
+          <path d="M2 2l20 20" />
+          <path d="M8.5 16.5a5 5 0 0 1 7 0" />
+          <path d="M2 8.82a15 15 0 0 1 4.17-2.65" />
+          <path d="M10.66 5c4.01-.36 8.14.9 11.34 3.76" />
+          <path d="M16.85 11.25a10 10 0 0 1 2.22 1.68" />
+          <path d="M5 12.55a10 10 0 0 1 5.17-2.39" />
+          <line x1="12" y1="20" x2="12.01" y2="20" />
+        </svg>
+        <svg data-show="online" viewBox="0 0 24 24">
+          <path d="M5 12.55a11 11 0 0 1 14.08 0" />
+          <path d="M1.42 9a16 16 0 0 1 21.16 0" />
+          <path d="M8.53 16.11a6 6 0 0 1 6.95 0" />
+          <line x1="12" y1="20" x2="12.01" y2="20" />
+        </svg>
+      </div>
+
+      <h1 data-show="offline">Anda sedang offline</h1>
+      <h1 data-show="online">Koneksi tersedia</h1>
+
+      <p class="desc" data-show="offline" id="desc-offline">
+        Halaman ini belum tersedia di cache. Sambungkan perangkat ke jaringan lokal atau internet untuk memuat
+        <span class="brand">Cakra Enterprise</span>.
+      </p>
+      <p class="desc" data-show="online" id="desc-online">Jaringan kembali terhubung. Halaman akan dimuat ulang secara otomatis.</p>
+
+      <!-- Satu live region, isinya diganti lewat textContent -->
+      <div class="status" id="status" role="status" aria-live="polite">Offline</div>
+
+      <div class="actions">
+        <button class="btn btn-primary" id="retry" type="button">Coba muat ulang</button>
+        <a class="btn btn-secondary" id="home" href="/acn/">Kembali ke beranda</a>
+      </div>
+
+      <p class="hint">Jika Anda sedang melakukan transaksi, data yang belum tersinkron akan dikirim otomatis setelah koneksi pulih.</p>
+    </main>
+
+    <script>
+      (function () {
+        "use strict";
+
+        // Endpoint ringan di server yang sama (diakses dengan HEAD, tidak lewat service worker).
+        var PROBE_URL = "/acn/";
+        var PROBE_TIMEOUT_MS = 4000;
+        var RELOAD_DELAY_MS = 600;
+        var POLL_MIN_MS = 2000;
+        var POLL_MAX_MS = 10000;
+
+        // Pengaman loop: maksimal 3 reload otomatis dalam 30 detik.
+        var MAX_RELOADS = 3;
+        var RELOAD_WINDOW_MS = 30000;
+        var RELOAD_KEY = "acn-offline-reloads";
+
+        var LABEL = {
+          offline: { status: "Offline", retry: "Coba muat ulang" },
+          unreachable: { status: "Server belum terjangkau, mencoba lagi...", retry: "Coba muat ulang" },
+          checking: { status: "Memeriksa koneksi...", retry: "Memeriksa..." },
+          online: { status: "Online", retry: "Memuat ulang..." },
+          failed: { status: "Gagal memuat otomatis", retry: "Coba muat ulang" },
+        };
+
+        var app = document.getElementById("app");
+        var statusEl = document.getElementById("status");
+        var retryBtn = document.getElementById("retry");
+
+        var pollTimer = null;
+        var reloadTimer = null;
+        var pollDelay = POLL_MIN_MS;
+        var busy = false;
+        var again = false;
+        var stopped = false;
+
+        function setView(view) {
+          var isOnline = view === "online";
+          app.dataset.state = isOnline ? "online" : "offline";
+          statusEl.textContent = LABEL[view].status;
+          retryBtn.textContent = LABEL[view].retry;
+          retryBtn.disabled = isOnline || view === "checking";
+        }
+
+        // ---------- Pengaman loop reload ----------
+        function readReloads() {
+          try {
+            var list = JSON.parse(sessionStorage.getItem(RELOAD_KEY) || "[]");
+            var now = Date.now();
+            return list.filter(function (t) {
+              return now - t < RELOAD_WINDOW_MS;
+            });
+          } catch (e) {
+            return [];
+          }
+        }
+
+        function writeReloads(list) {
+          try {
+            sessionStorage.setItem(RELOAD_KEY, JSON.stringify(list));
+          } catch (e) {}
+        }
+
+        // ---------- Probe ----------
+        function probe() {
+          var controller = new AbortController();
+          var timer = setTimeout(function () {
+            controller.abort();
+          }, PROBE_TIMEOUT_MS);
+
+          return fetch(PROBE_URL + (PROBE_URL.indexOf("?") === -1 ? "?" : "&") + "_=" + Date.now(), {
+            method: "HEAD",
+            cache: "no-store",
+            credentials: "same-origin",
+            signal: controller.signal,
+          })
+            .then(function (res) {
+              return res.status < 500;
+            })
+            .catch(function () {
+              return false;
+            })
+            .then(function (ok) {
+              clearTimeout(timer);
+              return ok;
+            });
+        }
+
+        // ---------- Reload ----------
+        function reloadNow() {
+          var recent = readReloads();
+          if (recent.length >= MAX_RELOADS) {
+            // Server terjangkau tapi halaman tetap jatuh ke offline.html: berhenti, jangan loop.
+            stopped = true;
+            clearTimeout(pollTimer);
+            setView("failed");
+            return;
+          }
+          recent.push(Date.now());
+          writeReloads(recent);
+
+          setView("online");
+          clearTimeout(pollTimer);
+          reloadTimer = setTimeout(function () {
+            window.location.reload();
+          }, RELOAD_DELAY_MS);
+        }
+
+        // ---------- Polling otomatis ----------
+        function schedulePoll() {
+          clearTimeout(pollTimer);
+          if (stopped || reloadTimer) return;
+          pollTimer = setTimeout(function () {
+            check(false);
+          }, pollDelay);
+          pollDelay = Math.min(pollDelay * 1.5, POLL_MAX_MS);
+        }
+
+        function check(manual) {
+          if (reloadTimer) return;
+          if (busy) {
+            again = true;
+            return;
+          }
+          busy = true;
+          if (manual) setView("checking");
+
+          probe().then(function (reachable) {
+            busy = false;
+
+            if (reachable) {
+              reloadNow();
+              return;
+            }
+
+            setView(navigator.onLine ? "unreachable" : "offline");
+
+            if (again) {
+              again = false;
+              check(false);
+              return;
+            }
+            schedulePoll();
+          });
+        }
+
+        // Dipanggil saat ada tanda koneksi mungkin pulih: langsung cek, reset backoff.
+        function wake() {
+          if (reloadTimer) return;
+          stopped = false;
+          pollDelay = POLL_MIN_MS;
+          clearTimeout(pollTimer);
+          check(false);
+        }
+
+        retryBtn.addEventListener("click", function () {
+          writeReloads([]);
+          stopped = false;
+          pollDelay = POLL_MIN_MS;
+          clearTimeout(pollTimer);
+          check(true);
+        });
+
+        window.addEventListener("online", wake);
+        window.addEventListener("offline", function () {
+          setView("offline");
+        });
+        window.addEventListener("focus", wake);
+        window.addEventListener("pageshow", wake);
+        document.addEventListener("visibilitychange", function () {
+          if (document.visibilityState === "visible") wake();
+        });
+
+        setView(navigator.onLine ? "unreachable" : "offline");
+        check(false);
+      })();
+    </script>
+  </body>
+</html>

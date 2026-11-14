@@ -1,6 +1,5 @@
 import { onBeforeUnmount, watch, type Ref } from "vue";
 import type { ProductSearchResult } from "../types/sales";
-import productService from "../services/productService";
 import { searchPosProducts } from "../services/posProductSearch";
 interface UsePosProductSearchOptions {
   keyword: Ref<string>;
@@ -62,6 +61,8 @@ export function usePosProductSearch(options: UsePosProductSearchOptions) {
   }
 
   async function handleBarcodeEnter(): Promise<void> {
+    cancelSearchTimer();
+
     const barcode = options.keyword.value.trim();
 
     if (!barcode || options.isTransactionLocked()) {

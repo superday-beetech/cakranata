@@ -2,7 +2,7 @@
 import { onMounted, ref } from "vue";
 
 import { notify } from "@/utils/notification";
-import { useModalStore } from "@/composables/modal";
+import { useModalStore } from "@/composables/useModal";
 
 import goodsReceiptService from "../services/goodsReceiptService";
 import GoodsReceiptFormModal from "../components/GoodsReceiptFormModal.vue";

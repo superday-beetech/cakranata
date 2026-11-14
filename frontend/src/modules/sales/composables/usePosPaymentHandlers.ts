@@ -5,47 +5,57 @@ interface UsePosPaymentHandlersOptions {
 
   setSettlementMode: (mode: SettlementMode) => void;
   setPaymentAmount: (value: number) => void;
-  setPaymentMethod: (method: PaymentMethod) => void;
+  setPaymentMethod: (method: PaymentMethod | null) => void; // ← null
   setDueDate: (value: string) => void;
   setPaymentReferenceNumber: (value: string) => void;
   payExact: () => void;
   resetPaymentAmount: () => void;
   setPaymentConfirmed: (value: boolean) => void;
+
+  showError?: (error: unknown) => void; // ← opsional
 }
 
 export function usePosPaymentHandlers(options: UsePosPaymentHandlersOptions) {
+  function guard(action: () => void): void {
+    try {
+      action();
+    } catch (error) {
+      options.showError?.(error);
+    }
+  }
+
   function handleSettlementMode(mode: SettlementMode): void {
-    options.setSettlementMode(mode);
+    guard(() => options.setSettlementMode(mode));
   }
 
   function handlePaymentAmount(value: number): void {
-    options.setPaymentAmount(Math.max(0, value));
+    if (!Number.isFinite(value) || value < 0) return;
+    guard(() => options.setPaymentAmount(value));
   }
 
-  function handlePaymentMethod(method: PaymentMethod): void {
-    options.setPaymentMethod(method);
+  function handlePaymentMethod(method: PaymentMethod | null): void {
+    guard(() => options.setPaymentMethod(method));
   }
 
   function handleDueDate(value: string): void {
-    options.setDueDate(value);
+    guard(() => options.setDueDate(value));
   }
 
   function handleReferenceNumber(value: string): void {
-    options.setPaymentReferenceNumber(value);
+    guard(() => options.setPaymentReferenceNumber(value));
   }
 
   function handleExactPayment(): void {
     if (options.getSettlementMode() !== "paid") return;
-
-    options.payExact();
+    guard(() => options.payExact());
   }
 
   function handleResetPayment(): void {
-    options.resetPaymentAmount();
+    guard(() => options.resetPaymentAmount());
   }
 
   function handlePaymentConfirmation(value: boolean): void {
-    options.setPaymentConfirmed(value);
+    guard(() => options.setPaymentConfirmed(value));
   }
 
   return {

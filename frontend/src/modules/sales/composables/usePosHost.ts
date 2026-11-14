@@ -1,7 +1,7 @@
 import type { Component } from "vue";
 
-import { useModalStore, type ModalSize } from "@/composables/modal";
-import { useOffcanvasStore } from "@/composables/offcanvas";
+import { useModalStore, type ModalSize } from "@/composables/useModal";
+import { useOffcanvasStore } from "@/composables/useOffcanvas";
 import { modal } from "@/utils/modal";
 import { offcanvas } from "@/utils/offcanvas";
 import { notify as globalNotify } from "@/utils/notification";
@@ -26,6 +26,10 @@ export function usePosHost() {
       scrollable: true,
       props: options.props,
     });
+  }
+
+  function closeModal(): void {
+    modal.close();
   }
 
   function notify(type: "success" | "error" | "info" | "warning", text: string): void {

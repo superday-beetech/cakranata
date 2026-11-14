@@ -2,7 +2,7 @@
 import type { TableColumn, PrintElement } from "../types/printTemplate";
 const props = defineProps<{
   elementId: string;
-  tableProps: { columns: TableColumn[]; rows: Record<string, string>[]; fontSize?: number };
+  tableProps: { columns: TableColumn[]; rows: Record<string, string>[]; fontSize?: number; binding?: string };
 }>();
 const emit = defineEmits<{ update: [id: string, props: PrintElement["props"]] }>();
 function addColumn() {

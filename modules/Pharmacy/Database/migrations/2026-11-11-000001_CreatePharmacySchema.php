@@ -1,6 +1,6 @@
 <?php
 
-namespace Modules\Pharmacy\Database\migrations;
+namespace Modules\Pharmacy\Database\Migrations;
 
 use CodeIgniter\Database\Migration;
 
@@ -73,7 +73,7 @@ class CreatePharmacySchema extends Migration
         $this->forge->addField([
             'id' => ['type' => 'BIGINT', 'unsigned' => true, 'null' => false, 'auto_increment' => true],
             'order_number' => ['type' => 'VARCHAR', 'constraint' => '40', 'null' => false],
-            'customer_id' => ['type' => 'BIGINT', 'unsigned' => true, 'null' => false],
+            'customer_id' => ['type' => 'BIGINT', 'unsigned' => true, 'null' => true, 'default' => null],
             'order_date' => ['type' => 'DATE', 'null' => false],
             'requested_delivery_date' => ['type' => 'DATE', 'null' => true, 'default' => null],
             'status' => ['type' => 'VARCHAR', 'constraint' => '20', 'null' => false, 'default' => 'draft'],
@@ -99,7 +99,7 @@ class CreatePharmacySchema extends Migration
         $this->forge->addField([
             'id' => ['type' => 'BIGINT', 'unsigned' => true, 'null' => false, 'auto_increment' => true],
             'payment_number' => ['type' => 'VARCHAR', 'constraint' => '40', 'null' => false],
-            'customer_id' => ['type' => 'BIGINT', 'unsigned' => true, 'null' => false],
+            'customer_id' => ['type' => 'BIGINT', 'unsigned' => true, 'null' => true, 'default' => null],
             'sale_id' => ['type' => 'BIGINT', 'unsigned' => true, 'null' => true, 'default' => null],
             'distribution_order_id' => ['type' => 'BIGINT', 'unsigned' => true, 'null' => true, 'default' => null],
             'payment_date' => ['type' => 'DATE', 'null' => false],
@@ -296,13 +296,13 @@ class CreatePharmacySchema extends Migration
         $this->forge->addField([
             'id' => ['type' => 'BIGINT', 'unsigned' => true, 'null' => false, 'auto_increment' => true],
             'product_id' => ['type' => 'BIGINT', 'unsigned' => true, 'null' => false],
-            'goods_receipt_item_id' => ['type' => 'BIGINT', 'unsigned' => true, 'null' => false],
+            'goods_receipt_item_id' => ['type' => 'BIGINT', 'unsigned' => true, 'null' => true, 'default' => null],
             'batch_number' => ['type' => 'VARCHAR', 'constraint' => '80', 'null' => false],
             'expired_at' => ['type' => 'DATE', 'null' => true, 'default' => null],
             'received_quantity' => ['type' => 'DECIMAL', 'constraint' => '18,3', 'null' => false, 'default' => '0.000'],
             'quantity_remaining' => ['type' => 'DECIMAL', 'constraint' => '18,3', 'null' => false, 'default' => '0.000'],
             'unit_cost' => ['type' => 'DECIMAL', 'constraint' => '18,2', 'null' => false, 'default' => '0.00'],
-            'status' => ['type' => 'VARCHAR', 'constraint' => '20', 'null' => false, 'default' => 'active'],
+            'status' => ['type' => 'VARCHAR', 'constraint' => '20', 'null' => false, 'default' => 'available'],
             'created_at' => ['type' => 'DATETIME', 'null' => true, 'default' => null],
             'updated_at' => ['type' => 'DATETIME', 'null' => true, 'default' => null],
         ]);
@@ -445,7 +445,7 @@ class CreatePharmacySchema extends Migration
             'payment_method' => ['type' => 'VARCHAR', 'constraint' => '30', 'null' => true, 'default' => null],
             'reference_number' => ['type' => 'VARCHAR', 'constraint' => '100', 'null' => true, 'default' => null],
             'due_date' => ['type' => 'DATE', 'null' => true, 'default' => null],
-            'collateral_note' => ['type' => 'VARCHAR', 'null' => true, 'default' => null],
+            'collateral_note' => ['type' => 'VARCHAR', 'constraint' => '255', 'null' => true, 'default' => null],
             'notes' => ['type' => 'TEXT', 'null' => true],
             'created_by' => ['type' => 'BIGINT', 'unsigned' => true, 'null' => true, 'default' => null],
             'updated_by' => ['type' => 'BIGINT', 'unsigned' => true, 'null' => true, 'default' => null],
@@ -465,7 +465,7 @@ class CreatePharmacySchema extends Migration
         $this->forge->addField([
             'id' => ['type' => 'BIGINT', 'unsigned' => true, 'null' => false, 'auto_increment' => true],
             'return_number' => ['type' => 'VARCHAR', 'constraint' => '40', 'null' => false],
-            'customer_id' => ['type' => 'BIGINT', 'unsigned' => true, 'null' => false],
+            'customer_id' => ['type' => 'BIGINT', 'unsigned' => true, 'null' => true, 'default' => null],
             'sale_id' => ['type' => 'BIGINT', 'unsigned' => true, 'null' => true, 'default' => null],
             'delivery_id' => ['type' => 'BIGINT', 'unsigned' => true, 'null' => true, 'default' => null],
             'return_date' => ['type' => 'DATE', 'null' => false],

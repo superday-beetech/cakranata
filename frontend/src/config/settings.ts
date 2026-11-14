@@ -1,20 +1,19 @@
-
 export const APP_SETTINGS = [
-    // Application
-    'App.siteName',
-    'App.siteVersion',
+  // Application
+  "App.siteName",
+  "App.siteVersion",
 
-    // Site
-    'Site.label',
-    'Site.description',
+  // Site
+  "Site.label",
+  "Site.description",
 
-    // Theme
-    'Theme.sidebarType',
-    'Theme.layout',
-    'Theme.theme',
+  // Theme
+  "Theme.sidebarType",
+  "Theme.layout",
+  "Theme.theme",
 
-    // Navigation
-    'Config.menu',
+  // Navigation
+  "Config.menu",
 ] as const;
 
 export type AppSettingKey = (typeof APP_SETTINGS)[number];

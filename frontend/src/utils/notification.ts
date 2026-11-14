@@ -1,20 +1,20 @@
-import { useNotificationStore } from "@/composables/notification";
+import { useNotificationStore } from "@/composables/useNotification";
 import pinia from "@/stores";
 
 export const notify = {
-    success(message: string, options = {}) {
-        return useNotificationStore(pinia).success(message, options);
-    },
+  success(message: string, options = {}) {
+    return useNotificationStore(pinia).success(message, options);
+  },
 
-    error(message: string, options = {}) {
-        return useNotificationStore(pinia).error(message, options);
-    },
+  error(message: string, options = {}) {
+    return useNotificationStore(pinia).error(message, options);
+  },
 
-    warning(message: string, options = {}) {
-        return useNotificationStore(pinia).warning(message, options);
-    },
+  warning(message: string, options = {}) {
+    return useNotificationStore(pinia).warning(message, options);
+  },
 
-    info(message: string, options = {}) {
-        return useNotificationStore(pinia).info(message, options);
-    },
+  info(message: string, options = {}) {
+    return useNotificationStore(pinia).info(message, options);
+  },
 };

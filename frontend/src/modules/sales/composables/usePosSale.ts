@@ -45,18 +45,6 @@ export interface PosSaleOptions {
   clearSearch: () => void;
 }
 
-type PaymentBuilder = () => {
-  settlement_mode: SettlementMode;
-  amount: number;
-  applied_amount: number;
-  amount_received: number;
-  change_amount: number;
-  payment_method: PaymentMethod | null;
-  reference_number: string | null;
-  due_date: string | null;
-  payment_confirmed: boolean;
-};
-
 // =============================================================
 // COMPOSABLE
 // =============================================================
@@ -83,7 +71,7 @@ export function usePosSale(options: PosSaleOptions) {
 
   const canPostSale = computed(() => isDraft.value && !options.processing.value && options.payment.isValid.value);
 
-  const canProcessPayment = computed(() => isDraft.value && !options.processing.value && options.payment.isValid.value);
+  const canProcessPayment = canPostSale;
 
   // =========================================================
   // BUILD SALE PAYLOAD
@@ -277,6 +265,9 @@ export function usePosSale(options: PosSaleOptions) {
       });
 
       heldTransactions.value = result.data;
+    } catch (error) {
+      // Silent — atau log
+      heldTransactions.value = []; // reset
     } finally {
       loadingHeldTransactions.value = false;
     }
@@ -326,7 +317,6 @@ export function usePosSale(options: PosSaleOptions) {
     const id = Number(saleId);
 
     if (!Number.isSafeInteger(id) || id <= 0) {
-      console.log("Resume sale ID:", saleId, typeof saleId);
       throw new Error("ID transaksi tidak valid.");
     }
 
@@ -369,14 +359,6 @@ export function usePosSale(options: PosSaleOptions) {
       // Pulihkan pelanggan.
       options.selectedCustomerId.value = detail.customer_id ?? null;
 
-      // Pulihkan diskon transaksi sebagai nominal.
-      options.transactionDiscountMode.value = "amount";
-      options.transactionDiscountValue.value = toNumber(detail.discount_amount);
-
-      // Pulihkan pajak sebagai nominal.
-      options.taxMode.value = "amount";
-      options.taxValue.value = toNumber(detail.tax_amount);
-
       // Biaya tambahan belum didukung backend.
       // Reset pembayaran.
       options.resetPaymentFields();
@@ -392,17 +374,19 @@ export function usePosSale(options: PosSaleOptions) {
       // Pulihkan catatan.
       options.notes.value = detail.notes ?? "";
 
+      if (!resumedSale.items || !resumedSale.sale_number) {
+        throw new Error("Respons resumeSale tidak lengkap.");
+      }
       // Pulihkan transaksi.
       options.currentSale.value = {
         ...detail,
-        ...resumedSale,
-        items: detail.items,
+        status: "draft",
+        updated_at: resumedSale.updated_at,
       };
 
       options.isResumedSale.value = true;
 
-      heldTransactions.value = heldTransactions.value.filter((item) => item.id !== saleId);
-
+      heldTransactions.value = heldTransactions.value.filter((item) => item.id !== id);
       options.clearSearch();
 
       return options.currentSale.value;
@@ -415,7 +399,7 @@ export function usePosSale(options: PosSaleOptions) {
   // CANCEL
   // =========================================================
 
-  async function cancelCurrentSale(): Promise<void> {
+  async function cancelCurrentSale(restoreHeld: boolean = false): Promise<void> {
     const sale = options.currentSale.value;
 
     if (options.processing.value) return;
@@ -427,7 +411,7 @@ export function usePosSale(options: PosSaleOptions) {
     options.processing.value = true;
 
     try {
-      await salesService.cancelSale(sale.id);
+      await salesService.cancelSale(sale.id, { restoreHeld });
 
       resetTransactionState();
     } finally {

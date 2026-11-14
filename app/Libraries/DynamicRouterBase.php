@@ -186,7 +186,6 @@ abstract class DynamicRouterBase extends Controller
 
         $path = trim($this->request->getUri()->getPath(), '/');
         $policy = $this->authPolicy;
-
         if (strlen($path) > $policy->maxPathLength) {
             $this->rejectAsNotFound('path_policy', 'PATH_TOO_LONG', ['length' => strlen($path)]);
         }
@@ -200,83 +199,106 @@ abstract class DynamicRouterBase extends Controller
             throw PageNotFoundException::forPageNotFound();
         }
 
+        /*  $r = service('router');
+        pp([
+            $this->request->getPath(),
+            $r->getMatchedRoute(),
+            $r->controllerName(),
+            explode("\n", (new \Exception())->getTraceAsString())
+        ]); */
+
+        // dd(static::class, $this->moduleNamespace, $this->defaultController);
+        // dd([
+        //     $this->defaultController,
+        //     array_keys($this->controllerClasses),
+        //     array_values(array_filter($this->discoveredMethods, fn($e) => stripos($e, 'me') !== false)),
+        //     $this->allowedMethods
+        // ]);
+        // print_r($this->isSecurityFeatureEnabled('Core.httpVerbs'));
+
         [$controller, $method, $params] = $this->resolveControllerAndMethod($seg1, $seg2, $params);
-        // $method = $this->resolveEffectiveMethod($controller, $method);
 
-        if (! in_array($controller, $this->allowedControllers, true)) {
-            $this->rejectAsNotFound('controller_policy', 'CONTROLLER_NOT_ALLOWED', ['controller' => $controller]);
-        }
-        $methodDecision = $this->methodPolicy->diagnoseMethod(
-            $controller,
-            $method,
-            $this->request->getMethod()  // ← tambahkan ini
-        );
+        if (ENVIRONMENT === 'production') {
+            // $method = $this->resolveEffectiveMethod($controller, $method);
 
 
-        if (! $methodDecision['allowed']) {
-            $this->rejectAsNotFound('method_policy', $methodDecision['reason'], [
-                'controller' => $controller,
-                'method'     => $method,
-            ]);
-        }
-
-        $resolved = $this->methodPolicy->resolveDiscoveredMethod($controller, $method);
-
-        if ($resolved === null) {
-            $this->rejectAsNotFound('method_policy', 'METHOD_NOT_DISCOVERED', [
-                'controller' => $controller,
-                'method'     => $method,
-            ]);
-        }
-
-        $method   = $resolved;
-        $endpoint = $controller . '::' . $method;
-
-        // Rate limit lebih dulu: melindungi endpoint publik (login, register, magic link).
-        if ($this->rateLimitEnabled && ! $this->checkRateLimit($endpoint)) {
-            return $this->handleTooManyRequests($endpoint);
-        }
-
-        // Akses: autentikasi -> akun aktif -> registry -> permission.
-        if ($this->isSecurityFeatureEnabled('Core.checkAccess')) {
-            $decision = $this->accessChecker->diagnoseAccess($endpoint);
-
-            if (! $decision['allowed']) {
-                $this->auditDenied($endpoint, $decision);
-
-                return $this->routerResponseHandler->handleAccessDecision($decision);
+            if (! in_array($controller, $this->allowedControllers, true)) {
+                $this->rejectAsNotFound('controller_policy', 'CONTROLLER_NOT_ALLOWED', ['controller' => $controller]);
             }
-        }
+            $methodDecision = $this->methodPolicy->diagnoseMethod(
+                $controller,
+                $method,
+                $this->request->getMethod()  // ← tambahkan ini
+            );
 
-        // Verb dari RouterConfig (hanya bisa mempersempit), setelah akses lolos.
-        if (
-            $this->isSecurityFeatureEnabled('Core.httpVerbs')
-            && ! $this->isHttpVerbExcluded($endpoint)
-            && ! $this->checkHttpVerb($endpoint)
-        ) {
-            $this->logRejection('http_verb', 'HTTP_VERB_NOT_ALLOWED', [
-                'endpoint' => $endpoint,
-                'verb'     => strtoupper($this->request->getMethod()),
-            ]);
 
-            return $this->handleMethodNotAllowed('HTTP_VERB_NOT_ALLOWED', null, null);
-        }
+            if (! $methodDecision['allowed']) {
+                $this->rejectAsNotFound('method_policy', $methodDecision['reason'], [
+                    'controller' => $controller,
+                    'method'     => $method,
+                ]);
+            }
 
-        foreach ($this->beforeRouteHooks as $hook) {
-            $this->assertHookCallable($hook, 'beforeRouteHooks');
+            $resolved = $this->methodPolicy->resolveDiscoveredMethod($controller, $method);
 
-            $override = $hook($controller, $method, $params);
+            if ($resolved === null) {
+                $this->rejectAsNotFound('method_policy', 'METHOD_NOT_DISCOVERED', [
+                    'controller' => $controller,
+                    'method'     => $method,
+                ]);
+            }
 
-            if ($override instanceof ResponseInterface) {
-                return $override;
+            $method   = $resolved;
+            $endpoint = $controller . '::' . $method;
+
+            // Rate limit lebih dulu: melindungi endpoint publik (login, register, magic link).
+            if ($this->rateLimitEnabled && ! $this->checkRateLimit($endpoint)) {
+                return $this->handleTooManyRequests($endpoint);
+            }
+
+            // Akses: autentikasi -> akun aktif -> registry -> permission.
+            if ($this->isSecurityFeatureEnabled('Core.checkAccess')) {
+                $decision = $this->accessChecker->diagnoseAccess($endpoint);
+
+                if (! $decision['allowed']) {
+                    $this->auditDenied($endpoint, $decision);
+
+                    return $this->routerResponseHandler->handleAccessDecision($decision);
+                }
+            }
+
+            // Verb dari RouterConfig (hanya bisa mempersempit), setelah akses lolos.print_r();
+
+            if (
+                $this->isSecurityFeatureEnabled('Core.httpVerbs')
+                && ! $this->isHttpVerbExcluded($endpoint)
+                && ! $this->checkHttpVerb($endpoint)
+            ) {
+                $this->logRejection('http_verb', 'HTTP_VERB_NOT_ALLOWED', [
+                    'endpoint' => $endpoint,
+                    'verb'     => strtoupper($this->request->getMethod()),
+                ]);
+
+                return $this->handleMethodNotAllowed('HTTP_VERB_NOT_ALLOWED', null, null);
+            }
+
+            foreach ($this->beforeRouteHooks as $hook) {
+                $this->assertHookCallable($hook, 'beforeRouteHooks');
+
+                $override = $hook($controller, $method, $params);
+
+                if ($override instanceof ResponseInterface) {
+                    return $override;
+                }
             }
         }
 
         $result = $this->runController($controller, $method, $params);
-
-        foreach ($this->afterRouteHooks as $hook) {
-            $this->assertHookCallable($hook, 'afterRouteHooks');
-            $hook($controller, $method, $params, $result);
+        if (ENVIRONMENT === 'production') {
+            foreach ($this->afterRouteHooks as $hook) {
+                $this->assertHookCallable($hook, 'afterRouteHooks');
+                $hook($controller, $method, $params, $result);
+            }
         }
 
         return $result;
@@ -430,6 +452,7 @@ abstract class DynamicRouterBase extends Controller
 
     public function resolveControllerAndMethod(string $seg1 = '', ?string $seg2 = null, array $params = []): array
     {
+
         return $this->routeResolver->resolveControllerAndMethod($seg1, $seg2, $params);
     }
 
@@ -496,6 +519,8 @@ abstract class DynamicRouterBase extends Controller
     protected function runController(string $controller, string $method, array $params = [])
     {
         $className = $this->controllerClasses[$controller] ?? null;
+
+
         $notFound  = fn() => $this->handleNotFound('NOT_FOUND', 'Halaman tidak ditemukan.');
 
         if (

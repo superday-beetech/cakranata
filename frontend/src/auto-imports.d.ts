@@ -60,7 +60,7 @@ declare global {
   const resolveComponent: typeof import('vue').resolveComponent
   const setActivePinia: typeof import('pinia').setActivePinia
   const setMapStoreSuffix: typeof import('pinia').setMapStoreSuffix
-  const setting: typeof import('./composables/settings').setting
+  const setting: typeof import('./composables/useSettings').setting
   const shallowReactive: typeof import('vue').shallowReactive
   const shallowReadonly: typeof import('vue').shallowReadonly
   const shallowRef: typeof import('vue').shallowRef
@@ -72,6 +72,7 @@ declare global {
   const triggerRef: typeof import('vue').triggerRef
   const unref: typeof import('vue').unref
   const useAttrs: typeof import('vue').useAttrs
+  const useAxios: typeof import('./composables/useAxios').useAxios
   const useButtonSpin: typeof import('./composables/useButtonSpin').useButtonSpin
   const useCssModule: typeof import('vue').useCssModule
   const useCssVars: typeof import('vue').useCssVars
@@ -79,10 +80,10 @@ declare global {
   const useDiscount: typeof import('./composables/useDiscount').useDiscount
   const useId: typeof import('vue').useId
   const useLink: typeof import('vue-router').useLink
-  const useModalStore: typeof import('./composables/modal').useModalStore
+  const useModalStore: typeof import('./composables/useModal').useModalStore
   const useModel: typeof import('vue').useModel
-  const useNotificationStore: typeof import('./composables/notification').useNotificationStore
-  const useOffcanvasStore: typeof import('./composables/offcanvas').useOffcanvasStore
+  const useNotificationStore: typeof import('./composables/useNotification').useNotificationStore
+  const useOffcanvasStore: typeof import('./composables/useOffcanvas').useOffcanvasStore
   const useOption: typeof import('./composables/useOption').useOption
   const useRoute: typeof import('vue-router').useRoute
   const useRouter: typeof import('vue-router').useRouter
@@ -100,23 +101,23 @@ declare global {
   export type { Component, Slot, Slots, ComponentPublicInstance, ComputedRef, DirectiveBinding, ExtractDefaultPropTypes, ExtractPropTypes, ExtractPublicPropTypes, InjectionKey, PropType, Ref, ShallowRef, MaybeRef, MaybeRefOrGetter, VNode, WritableComputedRef } from 'vue'
   import('vue')
   // @ts-ignore
-  export type { ModalSize, ModalOptions } from './composables/modal'
-  import('./composables/modal')
-  // @ts-ignore
-  export type { MenuPosition, MenuSection, NavigationMenu, NavigationGroups, NavigationResponse, MenuHierarchy, MenuFormPayload, RouteRegistryCandidate, RouteRegistryPreview, RouteRegistrySaveItem, NavigationState } from './composables/navigation'
-  import('./composables/navigation')
-  // @ts-ignore
-  export type { NotificationType, NotificationOptions, NotificationItem } from './composables/notification'
-  import('./composables/notification')
-  // @ts-ignore
-  export type { OffcanvasPlacement, OffcanvasOptions } from './composables/offcanvas'
-  import('./composables/offcanvas')
+  export type { UseAxiosOptions } from './composables/useAxios'
+  import('./composables/useAxios')
   // @ts-ignore
   export type { ButtonSpinOptions } from './composables/useButtonSpin'
   import('./composables/useButtonSpin')
   // @ts-ignore
   export type { DiscountMode } from './composables/useDiscount'
   import('./composables/useDiscount')
+  // @ts-ignore
+  export type { ModalSize, ModalOptions } from './composables/useModal'
+  import('./composables/useModal')
+  // @ts-ignore
+  export type { MenuPosition, MenuSection, NavigationMenu, NavigationGroups, NavigationResponse, MenuHierarchy, MenuFormPayload, RouteRegistryCandidate, RouteRegistryPreview, RouteRegistrySaveItem, NavigationState } from './composables/useNavigation'
+  import('./composables/useNavigation')
+  // @ts-ignore
+  export type { OffcanvasPlacement, OffcanvasOptions } from './composables/useOffcanvas'
+  import('./composables/useOffcanvas')
   // @ts-ignore
   export type { OptionValue, OptionItem } from './composables/useOption'
   import('./composables/useOption')
@@ -182,7 +183,7 @@ declare module 'vue' {
     readonly resolveComponent: UnwrapRef<typeof import('vue')['resolveComponent']>
     readonly setActivePinia: UnwrapRef<typeof import('pinia')['setActivePinia']>
     readonly setMapStoreSuffix: UnwrapRef<typeof import('pinia')['setMapStoreSuffix']>
-    readonly setting: UnwrapRef<typeof import('./composables/settings')['setting']>
+    readonly setting: UnwrapRef<typeof import('./composables/useSettings')['setting']>
     readonly shallowReactive: UnwrapRef<typeof import('vue')['shallowReactive']>
     readonly shallowReadonly: UnwrapRef<typeof import('vue')['shallowReadonly']>
     readonly shallowRef: UnwrapRef<typeof import('vue')['shallowRef']>
@@ -194,6 +195,7 @@ declare module 'vue' {
     readonly triggerRef: UnwrapRef<typeof import('vue')['triggerRef']>
     readonly unref: UnwrapRef<typeof import('vue')['unref']>
     readonly useAttrs: UnwrapRef<typeof import('vue')['useAttrs']>
+    readonly useAxios: UnwrapRef<typeof import('./composables/useAxios')['useAxios']>
     readonly useButtonSpin: UnwrapRef<typeof import('./composables/useButtonSpin')['useButtonSpin']>
     readonly useCssModule: UnwrapRef<typeof import('vue')['useCssModule']>
     readonly useCssVars: UnwrapRef<typeof import('vue')['useCssVars']>
@@ -201,10 +203,9 @@ declare module 'vue' {
     readonly useDiscount: UnwrapRef<typeof import('./composables/useDiscount')['useDiscount']>
     readonly useId: UnwrapRef<typeof import('vue')['useId']>
     readonly useLink: UnwrapRef<typeof import('vue-router')['useLink']>
-    readonly useModalStore: UnwrapRef<typeof import('./composables/modal')['useModalStore']>
+    readonly useModalStore: UnwrapRef<typeof import('./composables/useModal')['useModalStore']>
     readonly useModel: UnwrapRef<typeof import('vue')['useModel']>
-    readonly useNotificationStore: UnwrapRef<typeof import('./composables/notification')['useNotificationStore']>
-    readonly useOffcanvasStore: UnwrapRef<typeof import('./composables/offcanvas')['useOffcanvasStore']>
+    readonly useOffcanvasStore: UnwrapRef<typeof import('./composables/useOffcanvas')['useOffcanvasStore']>
     readonly useOption: UnwrapRef<typeof import('./composables/useOption')['useOption']>
     readonly useRoute: UnwrapRef<typeof import('vue-router')['useRoute']>
     readonly useRouter: UnwrapRef<typeof import('vue-router')['useRouter']>

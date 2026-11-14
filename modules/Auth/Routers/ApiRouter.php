@@ -13,14 +13,7 @@ class ApiRouter extends DynamicRouterBase
     protected string $moduleNamespace = 'Modules\\Auth\\Controllers\\API\\V1';
 
     protected string $defaultController = 'AuthController';
-    protected array $publicMethods = [
-        'AuthController::index',
-        'AuthController::login',
-        'AuthController::masuk',
-        'AuthController::me',
-        'AuthTokenController::index',
-        'AuthTokenController::login',
-    ];
+
 
     /*   public function route($seg1 = '', $seg2 = null, ...$params)
     {

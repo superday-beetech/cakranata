@@ -142,6 +142,7 @@ $buildManifest = static function () use ($modulesPath, $reserved, $toKebabCase, 
             $dynamicFile = $dir . '/Routers/DynamicRouter.php';
             $apiFile     = $dir . '/Routers/ApiRouter.php';
             $customFile  = $dir . '/Config/Routes.php';
+            $customApiFile = $dir . '/Config/ApiRoutes.php';
 
             $hasDynamic = false;
             if (is_file($dynamicFile)) {
@@ -173,6 +174,7 @@ $buildManifest = static function () use ($modulesPath, $reserved, $toKebabCase, 
                 'dynamic'    => $hasDynamic,
                 'api'        => $hasApi,
                 'customFile' => $hasCustom ? $customFile : null,
+                'customApiFile' => is_file($customApiFile) ? $customApiFile : null,
             ];
         }
     }
@@ -316,11 +318,18 @@ foreach ($manifest['modules'] as $module => $entry) {
     $routes->group(
         "api/v1/{$prefix}",
         ['namespace' => $entry['namespace'], 'filter' => $apiFilter],
-        static function (RouteCollection $routes) use ($verbs): void {
+        static function (RouteCollection $routes) use ($entry, $verbs, $loadRouteFile): void {
+            //                                                       ↑ TAMBAH $entry & $loadRouteFile
+
+            // Muat route API statis modul DULU (kalau ada)
+            if (! empty($entry['customApiFile'])) {
+                $loadRouteFile($routes, $entry['customApiFile']);
+            }
+
+            // Wildcard setelahnya
             $routes->match($verbs, '(:dslug)', 'ApiRouter::route/$1');
             $routes->match($verbs, '(:dslug)/(:dparam)', 'ApiRouter::route/$1/$2');
             $routes->match($verbs, '(:dslug)/(:dparam)/(:dparam)', 'ApiRouter::route/$1/$2/$3');
-            // $routes->match($verbs, '(:dslug)/(:dparam)/(:dparam)/(:dparam)', 'ApiRouter::route/$1/$2/$3/$4');
         }
     );
 }

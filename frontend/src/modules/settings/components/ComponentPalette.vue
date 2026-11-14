@@ -13,6 +13,7 @@ const items: PaletteItem[] = [
   { type: "image", label: "Gambar", icon: "ti ti-photo" },
   { type: "barcode", label: "Barcode", icon: "ti ti-barcode" },
   { type: "qr", label: "QR Code", icon: "ti ti-qrcode" },
+  { type: "logo", label: "Logo", icon: "ti ti-photo" },
 ];
 function onDragStart(event: DragEvent, item: PaletteItem) {
   if (!event.dataTransfer) return;

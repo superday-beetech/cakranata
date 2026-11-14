@@ -74,6 +74,7 @@ export function usePosSession(options: UsePosSessionOptions) {
 
     if (success) {
       menuStore.clear();
+      window.location.href = "/login"; // atau window.location.reload();
     }
 
     return { success, error: success ? null : auth.error ? String(auth.error) : null };

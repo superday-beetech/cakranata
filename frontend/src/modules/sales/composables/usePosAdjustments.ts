@@ -4,6 +4,8 @@ import type { DiscountMode, TaxMode, PosAdditionalCharge } from "../types/sales"
 
 import { roundMoney, toNumber } from "../utils/posMath";
 
+const MAX_ADDITIONAL_CHARGES = 10;
+
 // =============================================================
 // OPTIONS
 // =============================================================
@@ -49,7 +51,7 @@ export function usePosAdjustments(options: PosAdjustmentsOptions = {}) {
 
     transactionDiscountMode.value = mode;
 
-    transactionDiscountValue.value = mode === "percent" ? Math.min(100, value) : value;
+    transactionDiscountValue.value = mode === "percent" ? Math.min(100, value) : roundMoney(value);
   }
 
   // =========================================================
@@ -70,6 +72,10 @@ export function usePosAdjustments(options: PosAdjustmentsOptions = {}) {
   // =========================================================
 
   function addAdditionalCharge(charge: PosAdditionalCharge): void {
+    if (additionalCharges.value.length >= MAX_ADDITIONAL_CHARGES) {
+      throw new Error(`Maksimal ${MAX_ADDITIONAL_CHARGES} biaya tambahan.`);
+    }
+
     if (!charge.label.trim()) {
       throw new Error("Nama biaya tambahan wajib diisi.");
     }

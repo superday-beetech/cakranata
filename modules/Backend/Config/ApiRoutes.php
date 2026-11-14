@@ -7,7 +7,7 @@ use CodeIgniter\Router\RouteCollection;
 /** @var RouteCollection $routes */
 
 $routes->group(
-    'api/v1',
+    '',
     ['namespace' => 'Modules\\Backend\\Routers'],
     static function (RouteCollection $routes): void {
         $verbs = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];

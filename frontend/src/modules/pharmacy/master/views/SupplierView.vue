@@ -6,7 +6,7 @@ import supplierService, { type Supplier, type SupplierPagination } from "../serv
 import SupplierFormModal from "../components/SupplierFormModal.vue";
 import SupplierDetailModal from "../components/SupplierDetailModal.vue";
 
-import { useModalStore } from "@/composables/modal";
+import { useModalStore } from "@/composables/useModal";
 import { notify } from "@/utils/notification";
 
 const modalStore = useModalStore();

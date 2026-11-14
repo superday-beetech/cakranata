@@ -14,7 +14,7 @@ import type { OrganizationUnit } from "../types/organizationUnit";
 import type { OrganizationMembership } from "../types/organizationMembership";
 
 import { notify } from "@/utils/notification";
-import { useModalStore } from "@/composables/modal";
+import { useModalStore } from "@/composables/useModal";
 
 interface UserOption {
   id: number;

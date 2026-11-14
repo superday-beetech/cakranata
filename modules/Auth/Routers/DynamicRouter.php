@@ -33,7 +33,8 @@ class DynamicRouter extends DynamicRouterBase
     /**
      * Endpoint yang dikecualikan dari pemeriksaan HTTP verb.
      */
-    protected array $httpVerbExclusions = [
+}
+    /* protected array $httpVerbExclusions = [
         'LoginController::index',
         'LoginController::login',
         'LoginController::action',
@@ -41,5 +42,4 @@ class DynamicRouter extends DynamicRouterBase
         'MagicController::login',
         'RegisterController::index',
         'RegisterController::action',
-    ];
-}
+    ]; */

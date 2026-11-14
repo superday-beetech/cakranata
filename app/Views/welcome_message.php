@@ -269,13 +269,13 @@
             <h1>Welcome to CodeIgniter <?= CodeIgniter\CodeIgniter::CI_VERSION ?></h1>
 
             <h2>The small framework with powerful features</h2>
-            <div id="vue-test"></div>
+            <!-- <div id="vue-test"></div>
 
-            <script type="module" src="<?= esc(vite_asset(), 'attr') ?>"></script>
+            <script type="module" src="<?= esc(vite_asset(), 'attr') ?>"></script> -->
 
-            <form action="<?= site_url('auth/logout') ?>" method="post">
+            <form action="<?= site_url('auth/login') ?>" method="post">
                 <?= csrf_field() ?>
-                <button type="submit">Logout</button>
+                <button type="submit">LogIn</button>
             </form>
         </div>
 

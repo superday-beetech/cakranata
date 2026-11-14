@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, onBeforeUnmount } from "vue";
-import { useNotificationStore } from "@/composables/notification";
+import { useNotificationStore } from "@/composables/useNotification";
 
 const notification = useNotificationStore();
 let lastResourceError = 0;

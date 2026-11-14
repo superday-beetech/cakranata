@@ -47,11 +47,10 @@ export function usePosKeyboard(options: UsePosKeyboardOptions) {
 
     if (!match) return;
 
-    event.preventDefault();
-
     if (options.isProcessing() || options.isPosted() || options.getSettlementMode() === "receivable") {
       return;
     }
+    event.preventDefault();
 
     if ((options.getPaymentMethod() ?? "cash") !== "cash") return;
 

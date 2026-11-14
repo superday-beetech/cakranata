@@ -1,3 +1,4 @@
+/* frontend/src/router/DyanamicPageResolver.ts */
 import type { Component } from "vue";
 
 export type DynamicPageLoader = () => Promise<Component>;
@@ -17,13 +18,7 @@ const pages = import.meta.glob<Component>(["../modules/*/views/**/*.vue", "../mo
  * stock-movements -> stockmovements
  * StockMovementsView -> stockmovements
  */
-function normalizePageName(value: string): string {
-  return value
-    .replace(/\.vue$/i, "")
-    .replace(/view$/i, "")
-    .replace(/[^a-zA-Z0-9]/g, "")
-    .toLowerCase();
-}
+
 function normalizeSlug(value: string): string {
   return value.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
 }

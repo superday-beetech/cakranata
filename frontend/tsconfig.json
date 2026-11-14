@@ -12,7 +12,7 @@
     "isolatedModules": true,
     "esModuleInterop": true,
     "lib": ["ESNext", "DOM", "DOM.Iterable"],
-    "types": ["vite/client"],
+    "types": ["vite/client", "vue-sweetalert2", "vite-plugin-pwa/client"],
     "skipLibCheck": true,
     "noEmit": true,
     "allowJs": true,

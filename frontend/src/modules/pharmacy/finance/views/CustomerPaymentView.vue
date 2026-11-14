@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from "vue";
 import api from "@/api/client";
 import { notify } from "@/utils/notification";
-import { useModalStore } from "@/composables/modal";
+import { useModalStore } from "@/composables/useModal";
 
 import financeService from "../services/financeService";
 import type { CustomerPaymentPayload } from "../types/finance";

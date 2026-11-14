@@ -112,7 +112,12 @@ class PrintTemplatesController extends ApiController
         $paper  = $this->decodeJson($template['paper_config'] ?? '{}');
 
         $renderer = new HtmlRenderer(new TemplateBindingResolver());
-        $html = $renderer->render($paper, $design['elements'] ?? [], $data);
+        $html = $renderer->render(
+            $paper,
+            $design['elements'] ?? [],
+            $data,
+            $design['logo'] ?? null       // ← TAMBAH
+        );
 
         return $this->response
             ->setHeader('Content-Type', 'text/html; charset=utf-8')

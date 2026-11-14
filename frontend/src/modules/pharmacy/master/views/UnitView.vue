@@ -2,7 +2,7 @@
 import { onMounted, ref, watch } from "vue";
 
 import { notify } from "@/utils/notification";
-import { useModalStore } from "@/composables/modal";
+import { useModalStore } from "@/composables/useModal";
 
 import unitService, { type Unit, type UnitPagination } from "../services/unitService";
 

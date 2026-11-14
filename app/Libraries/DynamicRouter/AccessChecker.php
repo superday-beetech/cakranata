@@ -45,6 +45,14 @@ class AccessChecker
                 'Endpoint yang diminta tidak valid.',
                 404
             );
+            log_message(
+                'error',
+                'Gagal memeriksa route registry. Endpoint: {endpoint}; Error: {error}',
+                [
+                    'endpoint' => $endpoint,
+                    'error' => $e->getMessage(),
+                ]
+            );
         }
 
         $httpVerb = strtoupper($this->request->getMethod());
@@ -219,7 +227,7 @@ class AccessChecker
 
         // 8. Bypass group hanya melewati grant permission.
         // Tidak melewati status akun, route, atau HTTP verb.
-        if ($isBypassGroup) {
+        /* if ($isBypassGroup) {
             // Batasi bypass ke GET/HEAD (read-only) untuk mengurangi risiko.
             if (! in_array($httpVerb, ['GET', 'HEAD'], true)) {
                 log_message('info', "AccessChecker: bypass group diblokir untuk {$httpVerb} {$endpoint}");
@@ -227,6 +235,11 @@ class AccessChecker
             } else {
                 return $this->decision(true, 'bypass_group', 'Akses diizinkan.', 200);
             }
+        } */
+
+        if ($isBypassGroup) {
+
+            return $this->decision(true, 'bypass_group', 'Akses diizinkan.', 200);
         }
 
         // 9. Permission override.

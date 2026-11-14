@@ -151,9 +151,9 @@ export function usePosPayment(options: PosPaymentOptions) {
         errors.push("Pembayaran tunai sebagian tidak boleh mencapai total tagihan.");
       }
 
-      /* if (!options.customerId.value) {
+      if (!options.customerId.value) {
         errors.push("Pelanggan wajib dipilih untuk pembayaran sebagian.");
-      } */
+      }
 
       if (!method) {
         errors.push("Pilih metode pembayaran.");
@@ -168,11 +168,11 @@ export function usePosPayment(options: PosPaymentOptions) {
       }
     }
 
-    /* if (mode === "receivable") {
+    if (mode === "receivable") {
       if (!options.customerId.value) {
         errors.push("Pelanggan wajib dipilih untuk transaksi piutang.");
       }
-    } */
+    }
 
     if (mode !== "paid" && dueDateError.value) {
       errors.push(dueDateError.value);

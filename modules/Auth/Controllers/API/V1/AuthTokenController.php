@@ -1,6 +1,6 @@
 <?php
 
-namespace Modules\Auth\Controllers\Api\V1;
+namespace Modules\Auth\Controllers\API\V1;
 
 use App\Core\ApiController;
 use CodeIgniter\Shield\Entities\User;
