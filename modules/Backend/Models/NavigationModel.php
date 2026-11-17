@@ -505,4 +505,106 @@ class NavigationModel extends Model
             throw $e;
         }
     }
+
+    /**
+     * Navigasi runtime untuk pengguna yang sedang login.
+     * Visibilitas menu mengikuti group Shield melalui tabel menu_groups.
+     */
+    public function getNavigationForGroups(array $userGroups, string $section = 'backend'): array
+    {
+        $positions = ['sidebar', 'apps', 'quick_links', 'topbar'];
+        $result = array_fill_keys($positions, []);
+
+        $userGroups = array_values(array_unique(array_filter(
+            array_map(static fn ($group) => trim((string) $group), $userGroups),
+            static fn ($group) => $group !== ''
+        )));
+
+        if ($userGroups === []) {
+            return $result;
+        }
+
+        $menus = $this->select('menus.*')
+            ->join('menu_groups', 'menu_groups.menu_id = menus.id')
+            ->where('menus.section', $section)
+            ->where('menus.is_active', 1)
+            ->whereIn('menu_groups.group_name', $userGroups)
+            ->groupBy('menus.id')
+            ->orderBy('menus.position', 'ASC')
+            ->orderBy('menus.sequence', 'ASC')
+            ->findAll();
+
+        if ($menus === []) {
+            return $result;
+        }
+
+        // Ambil permission per URL dari Route Registry. Ini hanya metadata UI;
+        // otorisasi endpoint tetap dilakukan oleh backend.
+        $db = \\Config\\Database::connect();
+        $permissionRows = $db->table('route_registry_menus rrm')
+            ->select('rrm.url, rrp.permission')
+            ->join('route_registry_permissions rrp', 'rrp.route_id = rrm.route_id')
+            ->get()
+            ->getResultArray();
+
+        $permissionsByUrl = [];
+        foreach ($permissionRows as $row) {
+            $key = strtolower(trim((string) $row['url'], '/'));
+            if ($key !== '') {
+                $permissionsByUrl[$key][] = (string) $row['permission'];
+            }
+        }
+
+        $visibleIds = array_fill_keys(array_map(
+            static fn ($menu) => (int) $menu['id'],
+            $menus
+        ), true);
+
+        $byPosition = [];
+        foreach ($menus as $menu) {
+            $position = (string) ($menu['position'] ?? '');
+            if (! array_key_exists($position, $result)) {
+                continue;
+            }
+
+            $id = (int) $menu['id'];
+            $parentId = (int) ($menu['parent_id'] ?? 0);
+            if ($parentId <= 0 || ! isset($visibleIds[$parentId])) {
+                $parentId = 0;
+            }
+
+            $url = trim((string) ($menu['url'] ?? ''));
+            $urlKey = strtolower(trim($url, '/'));
+            $path = $url === '' ? '' : '/' . ltrim($url, '/');
+
+            $byPosition[$position][$parentId][] = [
+                'id' => $id,
+                'parent_id' => $parentId ?: null,
+                'title' => (string) $menu['title'],
+                'slug' => (string) ($menu['slug'] ?? ''),
+                'url' => $url,
+                'path' => $path,
+                'name' => (string) (($menu['slug'] ?? '') ?: 'menu-' . $id),
+                'component_key' => $menu['component_key'] ?? null,
+                'icon' => $menu['icon'] ?? null,
+                'permissions' => array_values(array_unique($permissionsByUrl[$urlKey] ?? [])),
+            ];
+        }
+
+        $buildTree = function (array $siblings, int $parentId) use (&$buildTree): array {
+            $tree = [];
+            foreach ($siblings[$parentId] ?? [] as $item) {
+                $item['children'] = $buildTree($siblings, (int) $item['id']);
+                $tree[] = $item;
+            }
+            return $tree;
+        };
+
+        foreach ($positions as $position) {
+            $result[$position] = $buildTree($byPosition[$position] ?? [], 0);
+        }
+
+        return $result;
+    }
+
 }
