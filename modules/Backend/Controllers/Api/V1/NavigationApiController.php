@@ -15,6 +15,34 @@ class NavigationApiController extends ApiController
         $this->menuModel = new NavigationModel();
     }
 
+
+    /**
+     * GET /api/v1/navigation/sidebar
+     * Mengambil navigasi runtime berdasarkan group pengguna aktif.
+     */
+    public function sidebar(): ResponseInterface
+    {
+        $user = auth()->user();
+
+        if (! $user) {
+            return $this->errorResponse('Sesi pengguna tidak ditemukan.', 401);
+        }
+
+        $groups = method_exists($user, 'getGroups')
+            ? $user->getGroups()
+            : [];
+
+        $menus = $this->menuModel->getNavigationForGroups(
+            is_array($groups) ? $groups : [],
+            'backend'
+        );
+
+        return $this->successResponse(
+            ['menus' => $menus],
+            'Navigasi berhasil dimuat.'
+        );
+    }
+
     public function index(): ResponseInterface
     {
 
