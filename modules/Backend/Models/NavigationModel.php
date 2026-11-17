@@ -524,12 +524,11 @@ class NavigationModel extends Model
             return $result;
         }
 
-        $menus = $this->select('menus.*')
+        $menus = $this->distinct()->select('menus.*')
             ->join('menu_groups', 'menu_groups.menu_id = menus.id')
             ->where('menus.section', $section)
             ->where('menus.is_active', 1)
             ->whereIn('menu_groups.group_name', $userGroups)
-            ->groupBy('menus.id')
             ->orderBy('menus.position', 'ASC')
             ->orderBy('menus.sequence', 'ASC')
             ->findAll();
