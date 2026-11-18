@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Modules\Backend\Controllers\API\V1;
+namespace Modules\Backend\Controllers\Api\V1;
 
 use App\Core\ApiController;
 use CodeIgniter\HTTP\ResponseInterface;
