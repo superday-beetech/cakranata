@@ -341,17 +341,48 @@ class NavigationModel extends Model
         }
     }
     // Sinkronisasi Group Akses (Mencegah akses antar group/role)
-    public function syncGroups(int $menuId, array $groups)
+    public function syncGroups(int $menuId, array $groups): void
     {
-        $db = \Config\Database::connect();
-        $db->table('menu_groups')->where('menu_id', $menuId)->delete();
+        if ($menuId < 1) {
+            throw new \InvalidArgumentException('ID menu tidak valid.');
+        }
+
+        $groupNames = [];
+
+        foreach ($groups as $group) {
+            if (! is_string($group)) {
+                throw new \InvalidArgumentException('Nama group akses tidak valid.');
+            }
+
+            $groupName = trim($group);
+
+            if ($groupName !== '') {
+                $groupNames[$groupName] = $groupName;
+            }
+        }
+
+        $db = $this->db;
+        $builder = $db->table('menu_groups');
+
+        if ($builder->where('menu_id', $menuId)->delete() === false) {
+            throw new \RuntimeException('Gagal menghapus relasi group menu.');
+        }
+
+        if ($groupNames === []) {
+            return;
+        }
 
         $batch = [];
-        foreach ($groups as $group) {
-            $batch[] = ['menu_id' => $menuId, 'group_name' => $group];
+
+        foreach ($groupNames as $groupName) {
+            $batch[] = [
+                'menu_id'    => $menuId,
+                'group_name' => $groupName,
+            ];
         }
-        if (!empty($batch)) {
-            $db->table('menu_groups')->insertBatch($batch);
+
+        if ($db->table('menu_groups')->insertBatch($batch) === false) {
+            throw new \RuntimeException('Gagal menyimpan relasi group menu.');
         }
     }
 
@@ -473,14 +504,6 @@ class NavigationModel extends Model
                 }
             }
 
-            /* $validGroupIds = array_map(
-                'intval',
-                array_column(
-                    $db->table('auth_groups')->select('name')->get()->getResultArray(),
-                    'name'
-                )
-            ); */
-
             $validGroupNames = array_column(
                 $db->table('auth_groups')->select('name')->get()->getResultArray(),
                 'name'
@@ -527,14 +550,6 @@ class NavigationModel extends Model
                     ),
                     static fn(string $name): bool => $name !== ''
                 )));
-                /*  foreach ($groupIds as $groupId) {
-                    if (! in_array($groupId, $validGroupIds, true)) {
-                        throw new \InvalidArgumentException(
-                            'Terdapat grup akses yang tidak valid.'
-                        );
-                    }
-                }
- */
                 foreach ($groupNames as $groupName) {
                     if (! in_array($groupName, $validGroupNames, true)) {
                         throw new \InvalidArgumentException(
@@ -629,19 +644,6 @@ class NavigationModel extends Model
                             implode(', ', $this->errors())
                     );
                 }
-
-                /* if (! empty($groupIds)) {
-                    $relations = [];
-
-                    foreach ($groupIds as $groupId) {
-                        $relations[] = [
-                            'menu_id'  => (int) $menuId,
-                            'group_id' => $groupId,
-                        ];
-                    }
-
-                    $db->table('menu_groups')->insertBatch($relations);
-                } */
 
                 if (! empty($groupNames)) {
                     $relations = [];
