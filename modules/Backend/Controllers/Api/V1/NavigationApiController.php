@@ -158,9 +158,18 @@ class NavigationApiController extends ApiController
             $transactionStarted = true;
 
             if ($id !== null) {
-                if (! $this->menuModel->find((int) $id)) {
+                $existingMenu = $this->menuModel->find((int) $id);
+
+                if (! $existingMenu) {
                     $db->transRollback();
                     return $this->errorResponse('Menu tidak ditemukan.', 404);
+                }
+
+                if (
+                    ($existingMenu['position'] !== $position || $existingMenu['section'] !== $section)
+                    && $db->table('menus')->where('parent_id', (int) $id)->countAllResults() > 0
+                ) {
+                    throw new InvalidArgumentException('Posisi atau section menu induk tidak dapat diubah selama masih memiliki submenu.');
                 }
 
                 if (! $this->menuModel->update((int) $id, $data)) {
