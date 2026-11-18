@@ -430,17 +430,22 @@ class NavigationModel extends Model
                     throw new \InvalidArgumentException('Position menu tidak valid.');
                 }
 
-                /* if (! is_array($groupIds)) {
+                if (! is_array($groupIds) || ! array_is_list($groupIds)) {
                     throw new \InvalidArgumentException('Format grup akses tidak valid.');
-                } */
+                }
 
-                /* $groupIds = array_values(array_unique(array_map('intval', $groupIds))); */
                 $groupNames = array_values(array_unique(array_filter(
                     array_map(
-                        static fn($name) => trim((string) $name),
+                        static function ($name): string {
+                            if (! is_string($name)) {
+                                throw new \InvalidArgumentException('Nama grup akses tidak valid.');
+                            }
+
+                            return trim($name);
+                        },
                         $groupIds
                     ),
-                    static fn($name) => $name !== ''
+                    static fn(string $name): bool => $name !== ''
                 )));
                 /*  foreach ($groupIds as $groupId) {
                     if (! in_array($groupId, $validGroupIds, true)) {
@@ -584,7 +589,9 @@ class NavigationModel extends Model
                 throw new \RuntimeException('Transaksi sinkronisasi menu gagal.');
             }
 
-            $db->transCommit();
+            if ($db->transCommit() === false) {
+                throw new \\RuntimeException('Transaksi sinkronisasi menu gagal di-commit.');
+            }
 
             return [
                 'inserted' => $inserted,
