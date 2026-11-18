@@ -172,6 +172,20 @@ class NavigationApiController extends ApiController
                     throw new InvalidArgumentException('Posisi atau section menu induk tidak dapat diubah selama masih memiliki submenu.');
                 }
 
+                $scopeChanged = $existingMenu['position'] !== $position
+                    || $existingMenu['section'] !== $section;
+
+                if ($scopeChanged) {
+                    $maxRow = $db->table('menus')
+                        ->selectMax('sequence', 'max_sequence')
+                        ->where('position', $position)
+                        ->where('section', $section)
+                        ->get()
+                        ->getRowArray();
+
+                    $data['sequence'] = (int) ($maxRow['max_sequence'] ?? 0) + 1;
+                }
+
                 if (! $this->menuModel->update((int) $id, $data)) {
                     throw new RuntimeException('Menu gagal diperbarui: ' . implode(', ', $this->menuModel->errors()));
                 }
