@@ -324,11 +324,18 @@ class NavigationModel extends Model
             ->get()
             ->getResultArray();
 
-        $groups = $db->table('auth_groups')
-            ->select('id, name, description')
-            ->orderBy('name')
-            ->get()
-            ->getResultArray();
+        // Frontend Navigation mengonsumsi daftar nama group (string[]).
+        $groups = array_values(array_filter(
+            array_map(
+                static fn(array $group): string => (string) ($group['name'] ?? ''),
+                $db->table('auth_groups')
+                    ->select('name')
+                    ->orderBy('name')
+                    ->get()
+                    ->getResultArray()
+            ),
+            static fn(string $name): bool => $name !== ''
+        ));
 
         // Normalisasi URL untuk mendeteksi duplikasi.
         $existingUrls = [];
@@ -364,13 +371,17 @@ class NavigationModel extends Model
      *   [
      *     'route_menu_id' => 10,
      *     'position'      => 'sidebar',
-     *     'groups'        => [1, 2],
+     *     'groups'        => ['administrator', 'operator'],
      *   ],
      * ]
      */
     public function syncMenu(array $items, string $section = 'backend'): array
     {
         $db = \Config\Database::connect();
+
+        if (! array_is_list($items) || $items === []) {
+            throw new \\InvalidArgumentException('Pilih minimal satu kandidat menu dengan format yang valid.');
+        }
 
         if (! in_array($section, ['backend', 'frontend'], true)) {
             throw new \InvalidArgumentException('Section menu tidak valid.');
@@ -417,20 +428,29 @@ class NavigationModel extends Model
 
             $sequences = [];
 
-            foreach ($items as $item) {
-                $routeMenuId = (int) ($item['route_menu_id'] ?? 0);
-                $position    = (string) ($item['position'] ?? 'sidebar');
-                $groupIds    = $item['groups'] ?? [];
+            $seenCandidates = [];
 
-                if ($routeMenuId < 1) {
-                    throw new \InvalidArgumentException('ID kandidat menu tidak valid.');
+            foreach ($items as $item) {
+                if (! is_array($item)) {
+                    throw new \InvalidArgumentException('Format kandidat menu tidak valid.');
                 }
+
+                $routeMenuId = filter_var($item['route_menu_id'] ?? null, FILTER_VALIDATE_INT);
+                $position    = (string) ($item['position'] ?? 'sidebar');
+                $groupNamesInput = $item['groups'] ?? [];
+
+                if ($routeMenuId === false || (int) $routeMenuId < 1 || isset($seenCandidates[(int) $routeMenuId])) {
+                    throw new \InvalidArgumentException('ID kandidat menu tidak valid atau duplikat.');
+                }
+
+                $routeMenuId = (int) $routeMenuId;
+                $seenCandidates[$routeMenuId] = true;
 
                 if (! in_array($position, $allowedPositions, true)) {
                     throw new \InvalidArgumentException('Position menu tidak valid.');
                 }
 
-                if (! is_array($groupIds) || ! array_is_list($groupIds)) {
+                if (! is_array($groupNamesInput) || ! array_is_list($groupNamesInput)) {
                     throw new \InvalidArgumentException('Format grup akses tidak valid.');
                 }
 
@@ -443,7 +463,7 @@ class NavigationModel extends Model
 
                             return trim($name);
                         },
-                        $groupIds
+                        $groupNamesInput
                     ),
                     static fn(string $name): bool => $name !== ''
                 )));
