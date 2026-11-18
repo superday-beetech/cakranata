@@ -13,34 +13,86 @@ class NavigationModel extends Model
     // protected $casts            = [];
 
     // Ambil menu berdasarkan posisi DAN section (frontend / backend)
-    public function getMenusWithGroupsByPositionAndSection(string $position, string $section)
+    public function getMenusWithGroupsByPositionAndSection(string $position, string $section): array
     {
-        // Pastikan .where('section', $section) ada di sini!
         $menus = $this->where('position', $position)
             ->where('section', $section)
             ->orderBy('sequence', 'ASC')
+            ->orderBy('id', 'ASC')
             ->findAll();
 
-        if (empty($menus)) {
+        if ($menus === []) {
             return [];
         }
 
-        $db = \Config\Database::connect();
-        $menuIds = array_column($menus, 'id');
+        $db = $this->db;
+        $menuIds = array_map('intval', array_column($menus, 'id'));
 
-        $allRelations = $db->table('menu_groups')
+        $relations = $db->table('menu_groups')
             ->whereIn('menu_id', $menuIds)
             ->get()
             ->getResultArray();
 
+        if ($relations === []) {
+            foreach ($menus as &$menu) {
+                $menu['selected_groups'] = [];
+            }
+            unset($menu);
+
+            return $menus;
+        }
+
+        // Data lama mungkin menyimpan group_id, sedangkan data terbaru
+        // menggunakan group_name. Normalisasi keduanya menjadi nama group.
+        $legacyGroupIds = [];
+
+        foreach ($relations as $relation) {
+            $groupName = trim((string) ($relation['group_name'] ?? ''));
+
+            if ($groupName === '' && isset($relation['group_id'])) {
+                $groupId = (int) $relation['group_id'];
+
+                if ($groupId > 0) {
+                    $legacyGroupIds[$groupId] = $groupId;
+                }
+            }
+        }
+
+        $groupNamesById = [];
+
+        if ($legacyGroupIds !== []) {
+            $groupRows = $db->table('auth_groups')
+                ->select('id, name')
+                ->whereIn('id', array_values($legacyGroupIds))
+                ->get()
+                ->getResultArray();
+
+            foreach ($groupRows as $group) {
+                $groupNamesById[(int) $group['id']] = (string) $group['name'];
+            }
+        }
+
         $groupedRelations = [];
-        foreach ($allRelations as $rel) {
-            $groupedRelations[$rel['menu_id']][] = $rel['group_name'] ?? $rel['group_id'];
+
+        foreach ($relations as $relation) {
+            $menuId = (int) $relation['menu_id'];
+            $groupName = trim((string) ($relation['group_name'] ?? ''));
+
+            if ($groupName === '' && isset($relation['group_id'])) {
+                $groupName = $groupNamesById[(int) $relation['group_id']] ?? '';
+            }
+
+            if ($groupName !== '') {
+                $groupedRelations[$menuId][$groupName] = $groupName;
+            }
         }
 
         foreach ($menus as &$menu) {
-            $menu['selected_groups'] = $groupedRelations[$menu['id']] ?? [];
+            $menu['selected_groups'] = array_values(
+                $groupedRelations[(int) $menu['id']] ?? []
+            );
         }
+        unset($menu);
 
         return $menus;
     }
