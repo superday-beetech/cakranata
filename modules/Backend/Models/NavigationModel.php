@@ -380,15 +380,11 @@ class NavigationModel extends Model
         $db = \Config\Database::connect();
 
         if (! array_is_list($items) || $items === []) {
-            throw new \\InvalidArgumentException('Pilih minimal satu kandidat menu dengan format yang valid.');
+            throw new \InvalidArgumentException('Pilih minimal satu kandidat menu dengan format yang valid.');
         }
 
         if (! in_array($section, ['backend', 'frontend'], true)) {
             throw new \InvalidArgumentException('Section menu tidak valid.');
-        }
-
-        if (empty($items)) {
-            throw new \InvalidArgumentException('Pilih minimal satu kandidat menu.');
         }
 
         $allowedPositions = ['sidebar', 'topbar', 'down', 'quick_links', 'apps'];
