@@ -698,4 +698,5 @@ class SettingApiController extends ApiController
                 500
             );
         }
-    }}
+    }
+}
