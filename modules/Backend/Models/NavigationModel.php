@@ -590,7 +590,7 @@ class NavigationModel extends Model
             }
 
             if ($db->transCommit() === false) {
-                throw new \\RuntimeException('Transaksi sinkronisasi menu gagal di-commit.');
+                throw new \RuntimeException('Transaksi sinkronisasi menu gagal di-commit.');
             }
 
             return [
