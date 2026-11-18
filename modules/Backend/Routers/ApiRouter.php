@@ -10,7 +10,7 @@ class ApiRouter extends DynamicRouterBase
 {
     protected string $moduleFolder = 'Backend';
 
-    protected string $moduleNamespace = 'Modules\\Backend\\Controllers\\API\\V1';
+    protected string $moduleNamespace = 'Modules\\Backend\\Controllers\\Api\\V1';
 
     protected string $defaultController = 'BackendController';
     protected array $publicMethods = [
