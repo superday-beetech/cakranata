@@ -311,7 +311,7 @@ class SettingApiController extends ApiController
             }
 
             $databaseClass = $this->databaseClass($classInput);
-            $groupName = $databaseClass;
+            $groupName = $this->displayGroup($databaseClass);
             $value = $this->parseValue($rawValue, $type);
 
             if (! empty($this->settingsConfig()->database['deferWrites'])) {
@@ -366,6 +366,10 @@ class SettingApiController extends ApiController
                 'context' => $context,
             ], 'Class dan properti awal berhasil ditambahkan.', 201);
         } catch (InvalidArgumentException | JsonException $e) {
+            if ($transactionStarted && $db !== null) {
+                $db->transRollback();
+            }
+
             return $this->errorResponse($e->getMessage(), 422);
         } catch (Throwable $e) {
             if ($transactionStarted && $db !== null) {
@@ -611,8 +615,11 @@ class SettingApiController extends ApiController
      * DELETE /api/v1/backend/settings/delete
      * Menghapus override agar nilai konfigurasi default digunakan.
      */
-    public function getDelete()
+    public function deleteAction()
     {
+        $transactionStarted = false;
+        $db = null;
+
         try {
             $data = $this->jsonBody();
 
@@ -629,9 +636,7 @@ class SettingApiController extends ApiController
             $context = $this->contextValue($data);
 
             if (! $this->validProperty($property)) {
-                throw new InvalidArgumentException(
-                    'Nama properti tidak valid.'
-                );
+                throw new InvalidArgumentException('Nama properti tidak valid.');
             }
 
             $databaseClass = $this->databaseClass($group);
@@ -653,19 +658,36 @@ class SettingApiController extends ApiController
                 );
             }
 
+            $db->transBegin();
+            $transactionStarted = true;
+
             service('settings')->forget(
                 $groupName . '.' . $property,
                 $context
             );
+
+            if ($db->transStatus() === false || $db->transCommit() === false) {
+                throw new RuntimeException('Penghapusan override gagal disimpan.');
+            }
+
+            $transactionStarted = false;
 
             return $this->successResponse([
                 'group' => $databaseClass,
                 'property' => $property,
                 'context' => $context,
             ], 'Override pengaturan berhasil dihapus.');
-        } catch (InvalidArgumentException $e) {
+        } catch (InvalidArgumentException | JsonException $e) {
+            if ($transactionStarted && $db !== null) {
+                $db->transRollback();
+            }
+
             return $this->errorResponse($e->getMessage(), 422);
         } catch (Throwable $e) {
+            if ($transactionStarted && $db !== null) {
+                $db->transRollback();
+            }
+
             log_message(
                 'error',
                 '[Backend Settings][delete] ' . $e->getMessage()
@@ -676,5 +698,4 @@ class SettingApiController extends ApiController
                 500
             );
         }
-    }
-}
+    }}
