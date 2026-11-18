@@ -17,6 +17,26 @@ class ApiRouter extends DynamicRouterBase
         'AuthTokenController::index',
         'AuthTokenController::login',
     ];
+
+    /**
+     * RouteCollection meneruskan (:any) sebagai satu string.
+     * Pecah sisa path agar action dengan parameter, misalnya destroy/{id},
+     * dapat dipetakan oleh DynamicRouterBase.
+     */
+    public function route(string $seg1 = '', ?string $seg2 = null, mixed ...$params): mixed
+    {
+        if ($seg2 !== null && str_contains($seg2, '/')) {
+            $segments = array_values(array_filter(
+                explode('/', trim($seg2, '/')),
+                static fn(string $segment): bool => $segment !== ''
+            ));
+
+            $seg2 = array_shift($segments) ?: null;
+            $params = array_merge($segments, $params);
+        }
+
+        return parent::route($seg1, $seg2, ...$params);
+    }
     /*   public function route($seg1 = '', $seg2 = null, ...$params)
     {
         if ($seg2 !== null && ctype_digit((string) $seg2)) {
