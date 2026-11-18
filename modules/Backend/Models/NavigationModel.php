@@ -117,16 +117,22 @@ class NavigationModel extends Model
             }
 
             foreach ($nodes as $index => $node) {
-                if (! is_array($node) || ! isset($node['id']) || filter_var($node['id'], FILTER_VALIDATE_INT) === false) {
+                if (
+                    ! is_array($node)
+                    || ! isset($node['id'])
+                    || filter_var($node['id'], FILTER_VALIDATE_INT) === false
+                ) {
                     throw new \InvalidArgumentException('ID menu pada hierarki tidak valid.');
                 }
 
                 $id = (int) $node['id'];
+
                 if ($id < 1 || isset($seen[$id])) {
                     throw new \InvalidArgumentException('Menu duplikat atau ID menu tidak valid.');
                 }
 
                 $children = $node['children'] ?? [];
+
                 if (! is_array($children) || ! array_is_list($children)) {
                     throw new \InvalidArgumentException('Daftar submenu tidak valid.');
                 }
@@ -145,45 +151,48 @@ class NavigationModel extends Model
         $walk($items);
         $ids = array_column($rows, 'id');
 
-        $existing = $this->builder()
-            ->select('id, position, section')
-            ->whereIn('id', $ids)
-            ->get()
-            ->getResultArray();
-
-        if (count($existing) !== count($ids)) {
-            throw new \InvalidArgumentException('Sebagian menu tidak ditemukan.');
-        }
-
-        $position = (string) $existing[0]['position'];
-        $section  = (string) $existing[0]['section'];
-
-        foreach ($existing as $menu) {
-            if ($menu['position'] !== $position || $menu['section'] !== $section) {
-                throw new \InvalidArgumentException('Hierarki tidak boleh mencampur posisi atau section menu.');
-            }
-        }
-
-        $scopeRows = $this->builder()
-            ->select('id')
-            ->where('position', $position)
-            ->where('section', $section)
-            ->get()
-            ->getResultArray();
-
-        $scopeIds = array_map('intval', array_column($scopeRows, 'id'));
-        sort($scopeIds);
-        $submittedIds = $ids;
-        sort($submittedIds);
-
-        if ($scopeIds !== $submittedIds) {
-            throw new \InvalidArgumentException('Struktur menu tidak lengkap. Muat ulang sebelum menyimpan.');
-        }
-
         $db = $this->db;
         $db->transBegin();
 
         try {
+            // Validasi dilakukan dalam transaksi agar scope yang diperiksa
+            // konsisten dengan data yang akan diperbarui.
+            $existing = $db->table($this->table)
+                ->select('id, position, section')
+                ->whereIn('id', $ids)
+                ->get()
+                ->getResultArray();
+
+            if (count($existing) !== count($ids)) {
+                throw new \InvalidArgumentException('Sebagian menu tidak ditemukan.');
+            }
+
+            $position = (string) $existing[0]['position'];
+            $section  = (string) $existing[0]['section'];
+
+            foreach ($existing as $menu) {
+                if ($menu['position'] !== $position || $menu['section'] !== $section) {
+                    throw new \InvalidArgumentException('Hierarki tidak boleh mencampur posisi atau section menu.');
+                }
+            }
+
+            $scopeRows = $db->table($this->table)
+                ->select('id')
+                ->where('position', $position)
+                ->where('section', $section)
+                ->get()
+                ->getResultArray();
+
+            $scopeIds = array_map('intval', array_column($scopeRows, 'id'));
+            $submittedIds = $ids;
+
+            sort($scopeIds);
+            sort($submittedIds);
+
+            if ($scopeIds !== $submittedIds) {
+                throw new \InvalidArgumentException('Struktur menu tidak lengkap. Muat ulang sebelum menyimpan.');
+            }
+
             foreach ($rows as $row) {
                 $updated = $db->table($this->table)
                     ->where('id', $row['id'])
@@ -199,15 +208,18 @@ class NavigationModel extends Model
                 }
             }
 
-            if ($db->transStatus() === false || $db->transCommit() === false) {
-                throw new \RuntimeException('Transaksi hierarki menu gagal disimpan.');
+            if ($db->transStatus() === false) {
+                throw new \RuntimeException('Transaksi hierarki menu gagal.');
+            }
+
+            if ($db->transCommit() === false) {
+                throw new \RuntimeException('Transaksi hierarki menu gagal di-commit.');
             }
         } catch (\Throwable $e) {
             $db->transRollback();
             throw $e;
         }
     }
-
     public function getMenuForEdit(int $id)
     {
         // Ambil data menu utama
