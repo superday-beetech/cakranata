@@ -45,24 +45,114 @@ class NavigationModel extends Model
         return $menus;
     }
     // Logika rekursif dipindah ke model agar controller bersih
-    public function saveHierarchy(array $items, int $parentId = 0)
+    /**
+     * Simpan seluruh struktur menu dalam satu transaksi.
+     * Parent dan sequence diturunkan dari struktur nested, bukan dari nilai
+     * parent_id/sequence yang dikirim klien.
+     */
+    public function saveHierarchy(array $items): void
     {
-        foreach ($items as $index => $item) {
-            $id       = isset($item['id']) ? (int)$item['id'] : 0;
-            $sequence = $index + 1;
+        if ($items === [] || ! array_is_list($items)) {
+            throw new \InvalidArgumentException('Struktur menu tidak valid atau kosong.');
+        }
 
-            if ($id > 0) {
-                // Update langsung melalui model
-                $this->update($id, [
+        $rows = [];
+        $seen = [];
+
+        $walk = function (array $nodes, int $parentId = 0, int $depth = 0) use (&$walk, &$rows, &$seen): void {
+            if ($depth > 20 || ! array_is_list($nodes)) {
+                throw new \InvalidArgumentException('Kedalaman atau format hierarki menu tidak valid.');
+            }
+
+            foreach ($nodes as $index => $node) {
+                if (! is_array($node) || ! isset($node['id']) || filter_var($node['id'], FILTER_VALIDATE_INT) === false) {
+                    throw new \InvalidArgumentException('ID menu pada hierarki tidak valid.');
+                }
+
+                $id = (int) $node['id'];
+                if ($id < 1 || isset($seen[$id])) {
+                    throw new \InvalidArgumentException('Menu duplikat atau ID menu tidak valid.');
+                }
+
+                $children = $node['children'] ?? [];
+                if (! is_array($children) || ! array_is_list($children)) {
+                    throw new \InvalidArgumentException('Daftar submenu tidak valid.');
+                }
+
+                $seen[$id] = true;
+                $rows[] = [
+                    'id'        => $id,
                     'parent_id' => $parentId,
-                    'sequence'  => $sequence
-                ]);
+                    'sequence'  => $index + 1,
+                ];
 
-                // Proses children secara rekursif jika ada
-                if (!empty($item['children']) && is_array($item['children'])) {
-                    $this->saveHierarchy($item['children'], $id);
+                $walk($children, $id, $depth + 1);
+            }
+        };
+
+        $walk($items);
+        $ids = array_column($rows, 'id');
+
+        $existing = $this->builder()
+            ->select('id, position, section')
+            ->whereIn('id', $ids)
+            ->get()
+            ->getResultArray();
+
+        if (count($existing) !== count($ids)) {
+            throw new \InvalidArgumentException('Sebagian menu tidak ditemukan.');
+        }
+
+        $position = (string) $existing[0]['position'];
+        $section  = (string) $existing[0]['section'];
+
+        foreach ($existing as $menu) {
+            if ($menu['position'] !== $position || $menu['section'] !== $section) {
+                throw new \InvalidArgumentException('Hierarki tidak boleh mencampur posisi atau section menu.');
+            }
+        }
+
+        $scopeRows = $this->builder()
+            ->select('id')
+            ->where('position', $position)
+            ->where('section', $section)
+            ->get()
+            ->getResultArray();
+
+        $scopeIds = array_map('intval', array_column($scopeRows, 'id'));
+        sort($scopeIds);
+        $submittedIds = $ids;
+        sort($submittedIds);
+
+        if ($scopeIds !== $submittedIds) {
+            throw new \InvalidArgumentException('Struktur menu tidak lengkap. Muat ulang sebelum menyimpan.');
+        }
+
+        $db = $this->db;
+        $db->transBegin();
+
+        try {
+            foreach ($rows as $row) {
+                $updated = $db->table($this->table)
+                    ->where('id', $row['id'])
+                    ->where('position', $position)
+                    ->where('section', $section)
+                    ->update([
+                        'parent_id' => $row['parent_id'],
+                        'sequence'  => $row['sequence'],
+                    ]);
+
+                if ($updated === false) {
+                    throw new \RuntimeException('Gagal memperbarui hierarki menu.');
                 }
             }
+
+            if ($db->transStatus() === false || $db->transCommit() === false) {
+                throw new \RuntimeException('Transaksi hierarki menu gagal disimpan.');
+            }
+        } catch (\Throwable $e) {
+            $db->transRollback();
+            throw $e;
         }
     }
 
@@ -290,7 +380,7 @@ class NavigationModel extends Model
             throw new \InvalidArgumentException('Pilih minimal satu kandidat menu.');
         }
 
-        $allowedPositions = ['sidebar', 'topbar', 'down'];
+        $allowedPositions = ['sidebar', 'topbar', 'down', 'quick_links', 'apps'];
 
         $inserted = [];
         $skipped  = [];
